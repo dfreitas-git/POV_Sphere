@@ -13,6 +13,7 @@
 #include <Arduino.h>
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
+#include <images.h>
 
 const int PIN_SPI_MOSI = 13;  // MOSI (APA102 DATA)
 const int PIN_SPI_SCLK = 14;  // SCLK (APA102 CLK)
@@ -85,31 +86,33 @@ spi_device_handle_t spi = nullptr;
 // Double buffers allocated on heap (to make swapping trivial)
 uint8_t *frontBuffer = nullptr; // displayed buffer (contains TOTAL_COLUMNS columns sequentially)
 uint8_t *backBuffer  = nullptr; // written by CPU (next frame)
+const int COLUMN_WINDOW_TUNING_DELAY = 0;   // Number of microseconds to wait before starting to write the next column led data.
+uint8_t backBufferFillIndex = 0;  // We only write the backbuffer a few columns at a time.  This index points to the next column to write.
 
 // dlf  Remove this once I put in the motor PID/PWM code
 unsigned long simulatedMotorSensorTimer = 0; 
 
 volatile bool quarterFlag = false; // set in ISR
-volatile uint32_t quarterCount = 0; // index 0..3
+volatile int quarterIndex = 0; // index 0..3
 volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 
 // Simple timing / lock detection (optional)
 volatile uint32_t lastQuarterMicros = 0;
 volatile uint32_t lastQuarterPeriod = 0;
 
+
 // ---------- Forward declarations ----------
 void setupMotor() ;
 void checkRPMTimeout();
 float updatePID(float rpmMeasured, float targetRPM);
 void updateRPMfromPulseDt();
-void testOneLedA();
-void testOneLedB();
 void initSpi();
 void buildColumn(uint8_t *dst, uint32_t rgb48[]);
 void startColumnDma(uint8_t *columnData);
 void pollDmaComplete();
 void IRAM_ATTR syncISR();
-void fillBackBufferTestPattern(); // simple demo filler
+void fillWholeBackbuffer(); 
+void fillBackBufferPartially(uint8_t index);
 void swapBuffersAtomic();
 void ensureBuffersAllocated();
 void freeBuffers();
@@ -137,10 +140,7 @@ void setup() {
   ensureBuffersAllocated();
 
   // Pre-build initial frames (fill backBuffer with something)
-  fillBackBufferTestPattern();
-
-  // Do an initial swap so frontBuffer has valid content before first quarter
-  swapBuffersAtomic();
+  fillWholeBackbuffer();
 
   // Initialize SPI with DMA
   initSpi();
@@ -178,79 +178,60 @@ void loop() {
     // Clear the flag; handle work
     noInterrupts();
     quarterFlag = false;
-    uint32_t thisQuarter = quarterCount; // 0..3
     interrupts();
 
-    // Stream COLS_PER_RING columns for this ring (each column is pre-built in frontBuffer)
-    // frontBuffer layout: column 0, column 1, ... column TOTAL_COLUMNS-1
-    // The ring's columns are located at index ringIndex * COLS_PER_RING .. (ringIndex+1)*COLS_PER_RING -1
-    int baseCol = thisQuarter * COLS_PER_RING;
+    // Point the frontbuffer to the new data
+    //dlf swapBuffersAtomic();
 
-    for (int c = 0; c < COLS_PER_RING; ++c) {
-      uint8_t *colPtr = frontBuffer + ( (baseCol + c) * COLUMN_PAYLOAD );
+    // Frame buffer is 120x48.  We have four rings, each displays 1/4 of the frame buffer.  So we iterate across 30 columns
+    // (0-29, 30-59, 60-89, 90-119 depending on which ring we're updating) each time using SPI/DMA to serially stream 
+    // out the ring's columns of led data.  After 30 iterations we will have streamed out all 120 columns of led data.
+    //
+    // NOTE: Need to display columns in reverse (col119->col0) as the motor is spinning clockwise (right to left in terms of the frame buffer)
+    //       Also need to shift the starting index depending on which quadrant the Sphere is currently in.
+    for (uint8_t c = (quarterIndex * 30 + COLS_PER_RING-1) % 120; c >= (quarterIndex * 30); --c) {
 
-      // Turn on the selected colunm bus buffer
-      digitalWrite(ringEnable[thisQuarter], LOW); // enable
-      delayMicroseconds(1); // settle
+      // for each column, stream out the four rings led data
+      for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
+        uint8_t baseCol = ringIndex * COLS_PER_RING;
+        uint8_t *colPtr = frontBuffer + (((baseCol + c) % 120) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 (quarter-0)
+        //Serial.printf("qi=%d  c=%d  ri=%d   colPtr=%d\n",quarterIndex,c,ringIndex,(baseCol+c)%120);
 
-      startColumnDma(colPtr);
+        // Turn on the selected colunm bus buffer
+        digitalWrite(ringEnable[ringIndex], LOW); // enable
+        delayMicroseconds(1); // settle
 
-      // Wait for the DMA to finish this column before sending the next one.
-      // This is a simple approach; can be optimized to queue multiple transfers.
-      while (dmaBusy) {
-        pollDmaComplete();
+        startColumnDma(colPtr);
 
-        // give CPU some slack to do other small tasks (e.g. PID update)
-        delayMicroseconds(10);
+        // Wait for the DMA to finish this column before sending the next one.
+        // This is a simple approach; can be optimized to queue multiple transfers.
+        while (dmaBusy) {
+          pollDmaComplete();
+         
+          // While waiting for the DMA to finish, do a partial update of the backbuffer.  There isn't enough time to fill the
+          // entire buffer at once, so we do a little bit during each column window.
+          fillBackBufferPartially(backBufferFillIndex);
+          if(backBufferFillIndex == TOTAL_COLUMNS - 4) {
+            backBufferFillIndex = 0;
+          }
+        }
+        digitalWrite(ringEnable[ringIndex], HIGH); // disaable
       }
-      digitalWrite(ringEnable[thisQuarter], HIGH); // disaable
     }
 
-    // At this point the ring has been updated with 30 columns.
-    // CPU can prepare the next backBuffer while waiting for next quarter.
+    // At this point all the frame buffer has been displayed on all 120 led columns
   }
+  
+  // Add a tuning delay so that we wait until the next column window starts before streaming that column's led data
+  delayMicroseconds(COLUMN_WINDOW_TUNING_DELAY);
 
-  // Main loop can also update backBuffer with next frame content here.
-  // For demo, we'll update the backBuffer each loop iteration (replace with your compositor)
-  // IMPORTANT: do not write into frontBuffer while DMA is using it!
-  // Instead, write into backBuffer and rely on the swap at quarter boundary.
-  fillBackBufferTestPattern();
 
-  // Point the frontbuffer to the new data
-  swapBuffersAtomic();
-
-  // Small sleep: keep this loop responsive but not wasteful
-  delay(5);
 }
 
 // #############################################################
 //  Functions
 // #############################################################
 
-void testOneLedA() {
-    uint8_t buf[] = {
-        0x00,0x00,0x00,0x00, // start
-        0xFF, 0x80,0x00,0x00, // brightness=31->0xFF, B=32,G=64,R=128
-        0xFF,0xFF,0xFF,0xFF  // end
-    };
-
-    spi_transaction_t t = {};
-    t.length = sizeof(buf) * 8;
-    t.tx_buffer = buf;
-    spi_device_transmit(spi, &t);
-}
-void testOneLedB() {
-    uint8_t buf[] = {
-        0x00,0x00,0x00,0x00, // start
-        0xFF, 0x00,0x00,0x80, // brightness=31->0xFF, B=32,G=64,R=128
-        0xFF,0xFF,0xFF,0xFF  // end
-    };
-
-    spi_transaction_t t = {};
-    t.length = sizeof(buf) * 8;
-    t.tx_buffer = buf;
-    spi_device_transmit(spi, &t);
-}
 
 
 // Allocate contiguous memory for the entire frame (TOTAL_COLUMNS * COLUMN_PAYLOAD)
@@ -281,12 +262,36 @@ void swapBuffersAtomic() {
   interrupts();
 }
 
-// A simple demo pattern: fills backBuffer columns with a vertical color gradient
-void fillBackBufferTestPattern() {
+// Fill the backbuffer four columns at a time since we don't have time to fill it completely between updating led strips
+void fillBackBufferPartially(uint8_t index){
+  for (int col = index; col < index+4; ++col) {
 
-  // Example: each column gets a gradient depending on column index and a rotating offset.
-  static uint32_t tick = 0;
-  tick++;
+    // Build an array of 48 RGB values (packed 0xRRGGBB)
+    uint32_t rgb48[LEDS_PER_COLUMN];
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+
+    for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
+
+      if(image3[row][col] == 1) {
+        red =  128;
+      } else {
+        red =  0;
+      }
+      green = 0;
+      blue = 0;
+      rgb48[row] = (red << 16) | (green << 8) | (blue);
+    }
+
+    // Build the APA102-formatted column into backBuffer
+    uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
+    buildColumn(dst, rgb48);
+  }
+}
+
+// Read and fill the backbuffer
+void fillWholeBackbuffer() {
 
   for (int col = 0; col < TOTAL_COLUMNS; ++col) {
 
@@ -295,27 +300,26 @@ void fillBackBufferTestPattern() {
     uint8_t red;
     uint8_t green;
     uint8_t blue;
-    for (int r = 0; r < LEDS_PER_COLUMN; ++r) {
 
-      // Example color: shifting hue by column and brightness by row
-      //dlf uint8_t red = ( (col + tick) * 3 + r ) & 0xFF;
-      //dlf uint8_t green = ( (col * 2) + r * 2 ) & 0xFF;
-      //dlf uint8_t blue = ( (tick*2) + r * 3 ) & 0xFF;
+    for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
 
-      // Build stripes every other column
-      if(col % 2 == 0) {
+      if(image3[row][col] == 1) {
         red =  128;
       } else {
         red =  0;
       }
       green = 0;
       blue = 0;
-      rgb48[r] = (red << 16) | (green << 8) | (blue);
+      rgb48[row] = (red << 16) | (green << 8) | (blue);
     }
 
     // Build the APA102-formatted column into backBuffer
     uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
     buildColumn(dst, rgb48);
+
+    //dlf  just as a test, fill the front buffer and comment out the swap in the main loop (i.e. just use frontbuffer)
+    uint8_t *dst1 = frontBuffer + (col * COLUMN_PAYLOAD);
+    buildColumn(dst1, rgb48);
   }
 }
 
@@ -335,7 +339,7 @@ void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
     uint8_t g = (rgb48[i] >> 8) & 0xFF;
     uint8_t b = (rgb48[i]) & 0xFF;
     //dlf dst[idx++] = 0xE0 | 0x1F; // global brightness max (0xE0 + 5-bit)
-    dst[idx++] = 0xE0 | 0x01; // global low brightness  (0xE0 + 5-bit)
+    dst[idx++] = 0xE0 | 0x07; // global low brightness  (0xE0 + 5-bit)
     dst[idx++] = b;
     dst[idx++] = g;
     dst[idx++] = r;
@@ -561,7 +565,7 @@ void IRAM_ATTR syncISR() {
   lastQuarterPeriod = dt;
   lastQuarterMicros = now;
 
-  // increment quarter index atomically and set flag
-  quarterCount = (quarterCount + 1) & 0x03; // cycles 0..3
+  // increment quarter index and set flag
+  quarterIndex = (quarterIndex + 1) & 0x03; // cycles 0..3
   quarterFlag = true;
 }
