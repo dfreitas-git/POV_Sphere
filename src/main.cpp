@@ -45,6 +45,7 @@ const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED)
 const int TOTAL_COLUMNS_BYTES = TOTAL_COLUMNS * COLUMN_PAYLOAD;
 float lastAngleInDegrees = 0.0;
 float curAngleInDegrees = 0.0;
+uint16_t rawAngleOffset = 3072;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
 
 //##########################
 // PID motor speed control
@@ -153,7 +154,8 @@ void setup() {
 // Main Loop
 //#########################################
 void loop() {
-  // Poll DMA completion regularly (non-blocking)
+
+  // Poll DMA completion regularly (non-blocking).  Unset dmaBusy once DMA is complete
   pollDmaComplete();
 
   // Check the motor speed
@@ -182,8 +184,9 @@ void loop() {
     //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
   }
 
+  // Prepare for displaying new LED image
   // See what angle the sphere is at
-  uint16_t curRawAngle = as5600.getRawAngle();
+  uint16_t curRawAngle = (as5600.getRawAngle() + rawAngleOffset) % 4096;  // modulo to wrap result in case of overflow
   curAngleInDegrees = ((curRawAngle/4096.0) * 360.0);
   float deltaAngle = curAngleInDegrees - lastAngleInDegrees;
 
@@ -192,11 +195,11 @@ void loop() {
   if (deltaAngle < -180.0) deltaAngle += 360.0;
 
   // Every three-degree boundary we will start another column transfer.  This keeps the column displays perfectly aligned even if the motor speed varies
-  if(deltaAngle >= 3.0) {
+  if(deltaAngle >= 360.0 / TOTAL_COLUMNS) {
     lastAngleInDegrees = curAngleInDegrees;
 
-    // Find out which framebuffer-relative column we are at
-    currentColumn = int(((curRawAngle/4096.0) * 360.0) / 3.0);
+    // Find out which framebuffer-relative column we are at  (0-119)
+    currentColumn = int(curAngleInDegrees / (360.0 / TOTAL_COLUMNS)) - 1;
     //Serial.printf("rawAngle: %d  curAngle: %.2f   curColumn: %d   deltaAngle: %.2f\n", curRawAngle, curAngleInDegrees,currentColumn, deltaAngle);
 
     // No display update if we are still transferring data from the last update...
@@ -205,14 +208,14 @@ void loop() {
       // Point the frontbuffer to the new data
       //dlf swapBuffersAtomic();
 
-      // Need to reverse the column index since the sphere is rotating clockwise which means it's painting right to left from the framebuffer (i.e. highest index to lowest)
+      // Need to reverse the column index since the sphere is rotating clockwise which means it's 
+      // painting right to left from the framebuffer (i.e. highest index to lowest)
       int reversedColumn = TOTAL_COLUMNS - 1 - currentColumn;
 
       // for each column, stream out the four rings led data
       for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
         uint8_t baseCol = ringIndex * COLS_PER_RING;
         uint8_t *colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
-        //uint8_t *colPtr = frontBuffer + (((baseCol + c) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
         //Serial.printf("curCol= %d   reversedCol=%d  ri=%d   colPtr=%d\n",currentColumn,reversedColumn,ringIndex,(baseCol+c)%TOTAL_COLUMNS);
 
         // Turn on the selected colunm bus buffer
