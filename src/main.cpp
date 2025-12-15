@@ -1,6 +1,6 @@
 // POV_DotStar_DMA.ino
 // ESP32 Arduino sketch: APA102 (DotStar) driving with DMA, double-buffered,
-// 4x-per-rev quarter sync, and CD4052 ring multiplexing.
+// 4x-per-revolution, and CD4052 ring multiplexing.
 //
 // Hardware assumptions:
 // - ESP32 (Arduino core)
@@ -14,11 +14,12 @@
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
 #include <images.h>
+#include <Adafruit_AS5600.h>
 
 const int PIN_SPI_MOSI = 13;  // MOSI (APA102 DATA)
 const int PIN_SPI_SCLK = 14;  // SCLK (APA102 CLK)
-const int RING0_ENB = 21;      // SN74AHCT125 bus driver bit 0 select
-const int RING1_ENB = 22;      // SN74AHCT125 bus driver bit 1 select
+const int RING0_ENB = 2;       // SN74AHCT125 bus driver bit 0 select
+const int RING1_ENB = 4;       // SN74AHCT125 bus driver bit 1 select
 const int RING2_ENB = 16;      // SN74AHCT125 bus driver bit 2 select
 const int RING3_ENB = 17;      // SN74AHCT125 bus driver bit 3 select
 
@@ -27,8 +28,11 @@ const int ROWS = 48;            // vertical rows (LEDs per ring)
 
 const int TOTAL_COLUMNS = 120;  // total angular columns in a revolution
 const int RINGS = 4;            // number of rings
+const int COLS_PER_RING = TOTAL_COLUMNS/RINGS;            // number of rings
 const int ringEnable[] = {RING0_ENB, RING1_ENB, RING2_ENB, RING3_ENB};
-const int COLS_PER_RING = TOTAL_COLUMNS / RINGS; // 30 in your setup
+
+// There are 120 columns in 360 degrees of the sphere.  One for every 3 degrees.
+int currentColumn;    // The one ranges between 0-120.         
 
 // APA102 specifics
 const int BYTES_PER_LED = 4;  // APA102 uses 4 bytes per LED (global, B, G, R in common libs)
@@ -39,15 +43,19 @@ const int END_FRAME_BYTES = 4;
 const int LEDS_PER_COLUMN = ROWS;
 const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED) + END_FRAME_BYTES;
 const int TOTAL_COLUMNS_BYTES = TOTAL_COLUMNS * COLUMN_PAYLOAD;
+float lastAngleInDegrees = 0.0;
+float curAngleInDegrees = 0.0;
 
 //##########################
 // PID motor speed control
 //##########################
 const int MOTOR_PWM_PIN = 25; // To control the motor speed
-const int PIN_SYNC = 34;      // break-beam input (attachInterrupt)
 
-// Sensor produces TWO rising edges per revolution
-const int pulsesPerRev = 4;
+Adafruit_AS5600 as5600;  // magnetic angle sensor
+const uint32_t samplePeriod_us = 10000; // 10 ms
+uint16_t lastAngle = 0;
+uint32_t lastTime  = 0;
+float motorRPM = 0.0f;
 
 const uint32_t MIN_DT_US = 10000; // ignore pulses closer than 10ms => noise filter
 const uint32_t RPM_TIMEOUT_MS = 200; // if no pulses for 200ms, zero RPM
@@ -57,13 +65,10 @@ volatile uint32_t lastPulseTime = 0; // micros() at last valid pulse
 volatile uint32_t pulseDt = 0;       // dt in microseconds between last two valid pulses
 volatile uint32_t lastPulseMillis = 0; // millis() when last valid pulse arrived
 
-// Smoothed RPM (not volatile — updated in main loop)
-float motorRPM = 0.0f;
-
 // ====== PID control ======
 float targetRPM = 420.0;
 
-float Kp = 0.4f;
+float Kp = 0.2f;
 float Ki = 0.8f;
 float Kd = 0.02f;
 float Kff = 0.55f; // small feedforward (adjustable)
@@ -86,31 +91,20 @@ spi_device_handle_t spi = nullptr;
 // Double buffers allocated on heap (to make swapping trivial)
 uint8_t *frontBuffer = nullptr; // displayed buffer (contains TOTAL_COLUMNS columns sequentially)
 uint8_t *backBuffer  = nullptr; // written by CPU (next frame)
-const int COLUMN_WINDOW_TUNING_DELAY = 0;   // Number of microseconds to wait before starting to write the next column led data.
 uint8_t backBufferFillIndex = 0;  // We only write the backbuffer a few columns at a time.  This index points to the next column to write.
 
 // dlf  Remove this once I put in the motor PID/PWM code
 unsigned long simulatedMotorSensorTimer = 0; 
 
-volatile bool quarterFlag = false; // set in ISR
-volatile int quarterIndex = 0; // index 0..3
 volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
-
-// Simple timing / lock detection (optional)
-volatile uint32_t lastQuarterMicros = 0;
-volatile uint32_t lastQuarterPeriod = 0;
-
 
 // ---------- Forward declarations ----------
 void setupMotor() ;
-void checkRPMTimeout();
 float updatePID(float rpmMeasured, float targetRPM);
-void updateRPMfromPulseDt();
 void initSpi();
 void buildColumn(uint8_t *dst, uint32_t rgb48[]);
 void startColumnDma(uint8_t *columnData);
 void pollDmaComplete();
-void IRAM_ATTR syncISR();
 void fillWholeBackbuffer(); 
 void fillBackBufferPartially(uint8_t index);
 void swapBuffersAtomic();
@@ -122,8 +116,7 @@ void freeBuffers();
 //#########################################
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("POV DotStar starting...");
+  delay(2000);
 
   // Pin setup
   pinMode(RING0_ENB, OUTPUT);
@@ -131,10 +124,15 @@ void setup() {
   pinMode(RING2_ENB, OUTPUT);
   pinMode(RING3_ENB, OUTPUT);
 
-  // Setup sync input (edge triggered). Use RISING or FALLING depending on your sensor output.
-  pinMode(PIN_SYNC, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PIN_SYNC), syncISR, FALLING);
   setupMotor();
+
+  // Uses i2c interface to AS5600 to read angle
+  if (!as5600.begin()) {
+    Serial.println("Could not find AS5600 sensor, check wiring!");
+    while (1) {
+      delay(10);
+    }
+  }
 
   // Allocate buffers
   ensureBuffersAllocated();
@@ -149,7 +147,6 @@ void setup() {
   delay(10);
 
   Serial.println("Setup complete.");
-
 }
 
 //#########################################
@@ -160,10 +157,23 @@ void loop() {
   pollDmaComplete();
 
   // Check the motor speed
-  updateRPMfromPulseDt();
+  uint32_t now = micros();
 
-  // Check timeout see if motor has stopped
-  checkRPMTimeout();
+  if (now - lastTime >= samplePeriod_us) {
+    uint16_t curr = as5600.getRawAngle();
+    int16_t delta = curr - lastAngle;
+
+    // Takes care of case where we cross the 360 degree back to 0 degree boundary
+    if (delta > 2048)  delta -= 4096;
+    if (delta < -2048) delta += 4096;
+
+    // Compute rpm by measuring the delta-angle between polling
+    float dt = (now - lastTime) * 1e-6;
+    motorRPM = (delta * 60.0) / (4096.0 * dt);
+
+    lastAngle = curr;
+    lastTime = now;
+  }
 
   // ====== PID speed regulation ======
   if (millis() - lastPidMs > 100) {
@@ -172,30 +182,38 @@ void loop() {
     //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
   }
 
-  // If quarter flag set and no DMA currently busy, start streaming from column 0.
-  if (quarterFlag && !dmaBusy) {
+  // See what angle the sphere is at
+  uint16_t curRawAngle = as5600.getRawAngle();
+  curAngleInDegrees = ((curRawAngle/4096.0) * 360.0);
+  float deltaAngle = curAngleInDegrees - lastAngleInDegrees;
 
-    // Clear the flag; handle work
-    noInterrupts();
-    quarterFlag = false;
-    interrupts();
+  // Takes care of case where we cross the 360 degree back to 0 degree boundary
+  if (deltaAngle > 180.0)  deltaAngle -= 360.0;
+  if (deltaAngle < -180.0) deltaAngle += 360.0;
 
-    // Point the frontbuffer to the new data
-    //dlf swapBuffersAtomic();
+  // Every three-degree boundary we will start another column transfer.  This keeps the column displays perfectly aligned even if the motor speed varies
+  if(deltaAngle >= 3.0) {
+    lastAngleInDegrees = curAngleInDegrees;
 
-    // Frame buffer is 120x48.  We have four rings, each displays 1/4 of the frame buffer.  So we iterate across 30 columns
-    // (0-29, 30-59, 60-89, 90-119 depending on which ring we're updating) each time using SPI/DMA to serially stream 
-    // out the ring's columns of led data.  After 30 iterations we will have streamed out all 120 columns of led data.
-    //
-    // NOTE: Need to display columns in reverse (col119->col0) as the motor is spinning clockwise (right to left in terms of the frame buffer)
-    //       Also need to shift the starting index depending on which quadrant the Sphere is currently in.
-    for (uint8_t c = (quarterIndex * 30 + COLS_PER_RING-1) % 120; c >= (quarterIndex * 30); --c) {
+    // Find out which framebuffer-relative column we are at
+    currentColumn = int(((curRawAngle/4096.0) * 360.0) / 3.0);
+    //Serial.printf("rawAngle: %d  curAngle: %.2f   curColumn: %d   deltaAngle: %.2f\n", curRawAngle, curAngleInDegrees,currentColumn, deltaAngle);
+
+    // No display update if we are still transferring data from the last update...
+    if (!dmaBusy) {
+
+      // Point the frontbuffer to the new data
+      //dlf swapBuffersAtomic();
+
+      // Need to reverse the column index since the sphere is rotating clockwise which means it's painting right to left from the framebuffer (i.e. highest index to lowest)
+      int reversedColumn = TOTAL_COLUMNS - 1 - currentColumn;
 
       // for each column, stream out the four rings led data
       for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
         uint8_t baseCol = ringIndex * COLS_PER_RING;
-        uint8_t *colPtr = frontBuffer + (((baseCol + c) % 120) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 (quarter-0)
-        //Serial.printf("qi=%d  c=%d  ri=%d   colPtr=%d\n",quarterIndex,c,ringIndex,(baseCol+c)%120);
+        uint8_t *colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
+        //uint8_t *colPtr = frontBuffer + (((baseCol + c) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
+        //Serial.printf("curCol= %d   reversedCol=%d  ri=%d   colPtr=%d\n",currentColumn,reversedColumn,ringIndex,(baseCol+c)%TOTAL_COLUMNS);
 
         // Turn on the selected colunm bus buffer
         digitalWrite(ringEnable[ringIndex], LOW); // enable
@@ -218,21 +236,12 @@ void loop() {
         digitalWrite(ringEnable[ringIndex], HIGH); // disaable
       }
     }
-
-    // At this point all the frame buffer has been displayed on all 120 led columns
   }
-  
-  // Add a tuning delay so that we wait until the next column window starts before streaming that column's led data
-  delayMicroseconds(COLUMN_WINDOW_TUNING_DELAY);
-
-
 }
 
 // #############################################################
 //  Functions
 // #############################################################
-
-
 
 // Allocate contiguous memory for the entire frame (TOTAL_COLUMNS * COLUMN_PAYLOAD)
 void ensureBuffersAllocated() {
@@ -274,7 +283,7 @@ void fillBackBufferPartially(uint8_t index){
 
     for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
 
-      if(image3[row][col] == 1) {
+      if(image1[row][col] == 1) {
         red =  128;
       } else {
         red =  0;
@@ -303,7 +312,7 @@ void fillWholeBackbuffer() {
 
     for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
 
-      if(image3[row][col] == 1) {
+      if(image1[row][col] == 1) {
         red =  128;
       } else {
         red =  0;
@@ -384,7 +393,7 @@ void initSpi() {
     while (1) delay(1000);
   }
 
-  Serial.println("SPI DMA initialized");
+  //Serial.println("SPI DMA initialized");
 }
 
 // Start a DMA transfer of exactly one column (non-blocking).
@@ -431,47 +440,10 @@ void pollDmaComplete() {
   // if ret == ESP_ERR_TIMEOUT -> not finished yet; do nothing
 }
 
-//#############################################
-// Shaft speed sensor, motor control functions
-//#############################################
-void updateRPMfromPulseDt() {
 
-   // Safely copy volatile pulseDt
-  uint32_t dt;
-  noInterrupts();
-  dt = pulseDt;
-  interrupts();
-
-  if (dt == 0) {
-    // no valid pulse yet
-    return;
-  }
-
-  // Compute RPM (dt is microseconds between pulses)
-  // pulses_per_sec = 1e6 / dt
-  // revolutions_per_sec = pulses_per_sec / pulsesPerRev
-  // RPM = revolutions_per_sec * 60
-  float pulses_per_sec = 1000000.0f / (float)dt;
-  float rpm = (pulses_per_sec * 60.0f) / (float)pulsesPerRev;
-  motorRPM = rpm;
-}
-
-// Check if shaft is not moving
-void checkRPMTimeout() {
-  uint32_t nowMs = millis();
-  noInterrupts();
-  uint32_t lastMs = lastPulseMillis;
-  interrupts();
-
-  if ((nowMs - lastMs) > RPM_TIMEOUT_MS) {
-    motorRPM = 0.0f;
-  }
-}
 
 // Update the PWM value sent to the motor via a PID loop
-// Call this regularly from loop(), not from ISR
-// rpmMeasured = measured RPM (float)
-// targetRPM = desired RPM (global)
+// rpmMeasured = measured RPM (float),  targetRPM = desired RPM (global)
 float updatePID(float rpmMeasured, float targetRPM) {
   uint32_t now = millis();
   float dt = (lastPidMs == 0) ? 0.05f : ( (now - lastPidMs) / 1000.0f );
@@ -546,26 +518,3 @@ void setupMotor() {
     ledcWrite(0, 0);
 }
 
-// ---------- Sync ISR ----------
-// Minimal: capture time & set a flag. Avoid heavy work here.
-void IRAM_ATTR syncISR() {
-  uint32_t now = micros();
-  uint32_t dt = now - lastQuarterMicros;
-
-  // basic debounce/noise filter
-  if (dt < MIN_DT_US) {
-    return; // ignore likely noise
-  }
-
-  // Accept this pulse as valid
-  pulseDt = dt;
-  lastPulseTime = now;
-  lastPulseMillis = millis();
-
-  lastQuarterPeriod = dt;
-  lastQuarterMicros = now;
-
-  // increment quarter index and set flag
-  quarterIndex = (quarterIndex + 1) & 0x03; // cycles 0..3
-  quarterFlag = true;
-}
