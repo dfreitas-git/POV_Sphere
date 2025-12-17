@@ -16,6 +16,8 @@
 #include <images.h>
 #include <Adafruit_AS5600.h>
 
+#define IMAGE image1
+
 const uint16_t DATALOG_DEPTH = 256;   // How many debug points we will store to print later
 uint16_t datalogIndex = 0;
 uint32_t datalog[DATALOG_DEPTH];           // Array to store the datalog values
@@ -54,7 +56,6 @@ uint16_t RAW_ANGLE_OFFSET = 3072;
 // State Variables for keeping track of column count
 constexpr uint32_t AS5600_COUNTS = 4096;
 constexpr uint32_t COLUMNS   = 120;
-uint16_t lastRawAngle = 0;
 uint32_t angleUnwrapped = 0;
 
 uint32_t nextColumnAngle = 0;
@@ -85,7 +86,7 @@ volatile uint32_t lastPulseMillis = 0; // millis() when last valid pulse arrived
 
 // ====== PID control ======
 //dlf float targetRPM = 420.0;
-float targetRPM = 360.0;
+float targetRPM = 210.0;
 
 float Kp = 0.2f;
 float Ki = 0.8f;
@@ -99,7 +100,7 @@ float lastDerivative = 0.0f; // filtered derivative
 uint32_t lastPidMs = 0;  // Last time PID was updated
 
 // Output limits (map to your PWM range)
-const float PWM_MIN = 200.0f;
+const float PWM_MIN = 150.0f;
 const float PWM_MAX = 255.0f;
 
 const float DERIV_FILTER_TAU = 0.05f; // derivative low-pass (seconds). 0.01..0.2 typical
@@ -168,7 +169,6 @@ void setup() {
 
   // Do multiply before divide to maintain precision
   columnIndex = (uint32_t(curRawAngle) * COLUMNS) / AS5600_COUNTS;
-  lastRawAngle = curRawAngle;
 
   constexpr uint32_t base_step = AS5600_COUNTS / COLUMNS;
   nextColumnAngle = (columnIndex + 1) * base_step;
@@ -209,89 +209,78 @@ void loop() {
     ledcWrite(0, (int)pwm);
     //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
   }
+  // Prepare for displaying new LED image.  See what angle the sphere is at.  RAW_ANGLE_OFFSET lets us add a shift to the image
+  uint16_t curRawAngle = (as5600.getRawAngle() + RAW_ANGLE_OFFSET) % 4096;  // modulo to wrap result in case of overflow
 
-  // No display update if we are still transferring data from the last update...
-  if (!dmaBusy) {
+  int32_t triggerPoint = curRawAngle - nextColumnAngle;
+  if (triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
+  if (triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
 
-    // Prepare for displaying new LED image.  See what angle the sphere is at.  RAW_ANGLE_OFFSET lets us add a shift to the image
-    uint16_t curRawAngle = (as5600.getRawAngle() + RAW_ANGLE_OFFSET) % 4096;  // modulo to wrap result in case of overflow
+  // Once the current angle has reached the next column, trigger a DMA transfer
+  if (triggerPoint >= 0) {
 
-    int32_t triggerPoint = curRawAngle - nextColumnAngle;
-    if (triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
-    if (triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
+    // Check to see how many columns the shaft advanced.  Should usually be 1, but if there was some CPU delay the shaft may have advanced further
+    uint32_t columnsAdvanced = (triggerPoint * COLUMNS / AS5600_COUNTS) + 1;
 
-    // Once the current angle has reached the next column, trigger a DMA transfer
-    if (triggerPoint >= 0) {
+    columnIndex = (columnIndex + columnsAdvanced) % COLUMNS;
+    nextColumnAngle = (columnIndex + 1) * (AS5600_COUNTS / COLUMNS);
+    // Take care of angle wrapping from 360->0
+    if (nextColumnAngle >= AS5600_COUNTS) {
+      nextColumnAngle -= AS5600_COUNTS;
+    }
 
-      //columnIndex = (columnIndex + 1) % COLUMNS;
-      //nextColumnAngle += AS5600_COUNTS / COLUMNS;
-      columnIndex = (curRawAngle * COLUMNS) / AS5600_COUNTS;
-      nextColumnAngle = (columnIndex + 1) * (AS5600_COUNTS / COLUMNS);
-      if (nextColumnAngle >= AS5600_COUNTS) {
-        nextColumnAngle -= AS5600_COUNTS;
+    /*
+    // debug datalogger
+    if(datalogIndex < DATALOG_DEPTH) {
+      datalog[datalogIndex] = curRawAngle;
+      datalog1[datalogIndex] = nextColumnAngle;
+      datalog2[datalogIndex] = columnIndex;
+      datalogIndex++;
+    } else {
+      // filled the datalogger.  Pint the resutls and halt
+      for(int i=0; i< DATALOG_DEPTH; i++) {
+        Serial.printf("currentRawAngle: %d   nextColumnAngle: %d   columnIndex %d\n",datalog[i],datalog1[i],datalog2[i]);
       }
-      lastRawAngle = curRawAngle;
-
-/*
-      // debug datalogger
-      if(datalogIndex < DATALOG_DEPTH) {
-        datalog[datalogIndex] = curRawAngle;
-        datalog1[datalogIndex] = nextColumnAngle;
-        datalog2[datalogIndex] = columnIndex;
-        datalogIndex++;
-      } else {
-        // filled the datalogger.  Pint the resutls and halt
-        for(int i=0; i< DATALOG_DEPTH; i++) {
-          Serial.printf("currentRawAngle: %d   nextColumnAngle: %d   columnIndex %d\n",datalog[i],datalog1[i],datalog2[i]);
-        }
-        while(1) {
-        ledcWrite(0, 0);
-        }
+      while(1) {
+      ledcWrite(0, 0);
       }
-      */
+    }
+    */
 
-      // Point the frontbuffer to the new data
-      //dlf swapBuffersAtomic();
+    // Point the frontbuffer to the new data
+    //dlf swapBuffersAtomic();
   
-      // Need to reverse the column index since the sphere is rotating clockwise which means it's 
-      // painting right to left from the framebuffer (i.e. highest index to lowest)
-      int reversedColumn = TOTAL_COLUMNS - 1 - columnIndex;
+    if (!dmaBusy) {
+    // Need to reverse the column index since the sphere is rotating clockwise which means it's 
+    // painting right to left from the framebuffer (i.e. highest index to lowest)
+    int reversedColumn = TOTAL_COLUMNS - 1 - columnIndex;
   
-      // Start DMA for current column
-      // for each column, stream out the four rings led data
-
-      for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
-        uint8_t baseCol = ringIndex * COLS_PER_RING;
-        uint8_t *colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
+    // Start DMA for current column.  For each column, stream out the four rings led data
+    for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
+      uint8_t baseCol = ringIndex * COLS_PER_RING;
+      uint8_t *colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
   
-        // Turn on the selected colunm bus buffer
-        digitalWrite(ringEnable[ringIndex], LOW); // enable
-        delayMicroseconds(1); // settle
+      // Turn on the selected colunm bus buffer
+      digitalWrite(ringEnable[ringIndex], LOW); // enable
+      delayMicroseconds(1); // settle
   
-        startColumnDma(colPtr);
+      startColumnDma(colPtr);
   
-        // Wait for the DMA to finish this column before sending the next one.
-        // This is a simple approach; can be optimized to queue multiple transfers.
-        while (dmaBusy) {
-          pollDmaComplete();
-         
-          // While waiting for the DMA to finish, do a partial update of the backbuffer.  There isn't enough time to fill the
-          // entire buffer at once, so we do a little bit during each column window.
-          //fillBackBufferPartially(backBufferFillIndex);
-          //if(backBufferFillIndex == TOTAL_COLUMNS - 4) {
-          //  backBufferFillIndex = 0;
-          //}
-        }
+      // Wait for the DMA to finish this column before sending the next one.
+      // This is a simple approach; can be optimized to queue multiple transfers.
+      while (dmaBusy) {
+        pollDmaComplete();
+       
+        // While waiting for the DMA to finish, do a partial update of the backbuffer.  There isn't enough time to fill the
+        // entire buffer at once, so we do a little bit during each column window.
+        //fillBackBufferPartially(backBufferFillIndex);
+        //if(backBufferFillIndex == TOTAL_COLUMNS - 4) {
+        //  backBufferFillIndex = 0;
+        //}
+      }
         digitalWrite(ringEnable[ringIndex], HIGH); // disaable
       }
     }
-
-    // Update what column we are currently in just in case the DMA stalled or took longer than expected 
-    // in which case we might have already moved to the next column, so we'd have to advance the nextColumnAngle to skip it.
-    //uint16_t nowAngle = (as5600.getRawAngle() + RAW_ANGLE_OFFSET) % 4096;  // modulo to wrap result in case of overflow
-    //columnIndex = (nowAngle * COLUMNS) / AS5600_COUNTS;
-    //nextColumnAngle = ((columnIndex + 1) % COLUMNS) * (AS5600_COUNTS / COLUMNS);
-    //lastRawAngle = nowAngle;
   }
 }
 
@@ -339,7 +328,7 @@ void fillBackBufferPartially(uint8_t index){
 
     for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
 
-      if(image1[row][col] == 1) {
+      if(IMAGE[row][col] == 1) {
         red =  128;
       } else {
         red =  0;
@@ -368,7 +357,7 @@ void fillWholeBackbuffer() {
 
     for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
 
-      if(image1[row][col] == 1) {
+      if(IMAGE[row][col] == 1) {
         red =  128;
       } else {
         red =  0;
