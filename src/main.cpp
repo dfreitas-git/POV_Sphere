@@ -16,7 +16,7 @@
 #include <images.h>
 #include <Adafruit_AS5600.h>
 
-#define IMAGE image1
+#define IMAGE image2
 
 const uint16_t DATALOG_DEPTH = 256;   // How many debug points we will store to print later
 uint16_t datalogIndex = 0;
@@ -51,7 +51,9 @@ const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED)
 const int TOTAL_COLUMNS_BYTES = TOTAL_COLUMNS * COLUMN_PAYLOAD;
 
 // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
-uint16_t RAW_ANGLE_OFFSET = 3072;  
+//uint16_t rawAngleOffset = 3072;  
+uint16_t rawAngleOffset = 0; 
+boolean scrollDisplay = 1;
 
 // State Variables for keeping track of column count
 constexpr uint32_t AS5600_COUNTS = 4096;
@@ -60,6 +62,11 @@ uint32_t angleUnwrapped = 0;
 
 uint32_t nextColumnAngle = 0;
 uint16_t columnIndex = 0;
+
+// Time to display new column data before blanking
+const uint16_t STRIP_ON_TIME_BEFORE_BLANKING = 10;   // in microSeconds
+const boolean UPDATE_STRIP = 1;  // Flag that says "update the column LED's"
+const boolean BLANK_STRIP = 0;   // Flag that says "blank the column LED's"
 
 // Use integer math; keep remainder for precision
 constexpr uint32_t COLUMN_STEP = AS5600_COUNTS / COLUMNS;      // 34
@@ -85,8 +92,7 @@ volatile uint32_t pulseDt = 0;       // dt in microseconds between last two vali
 volatile uint32_t lastPulseMillis = 0; // millis() when last valid pulse arrived
 
 // ====== PID control ======
-//dlf float targetRPM = 420.0;
-float targetRPM = 210.0;
+float targetRPM = 280.0;
 
 float Kp = 0.2f;
 float Ki = 0.8f;
@@ -111,6 +117,7 @@ spi_device_handle_t spi = nullptr;
 // Double buffers allocated on heap (to make swapping trivial)
 uint8_t *frontBuffer = nullptr; // displayed buffer (contains TOTAL_COLUMNS columns sequentially)
 uint8_t *backBuffer  = nullptr; // written by CPU (next frame)
+uint8_t *blankingBuffer  = nullptr; // one column set to all zero for blanking the column
 uint8_t backBufferFillIndex = 0;  // We only write the backbuffer a few columns at a time.  This index points to the next column to write.
 
 volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
@@ -123,6 +130,8 @@ void initSpi();
 void buildColumn(uint8_t *dst, uint32_t rgb48[]);
 void startColumnDma(uint8_t *columnData);
 void pollDmaComplete();
+void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank);
+void fillBlankingColumn();
 void fillWholeBackbuffer(); 
 void fillBackBufferPartially(uint8_t index);
 void swapBuffersAtomic();
@@ -154,6 +163,9 @@ void setup() {
 
   // Allocate buffers
   ensureBuffersAllocated();
+
+  // Used to clear a column for blanking
+  fillBlankingColumn();
 
   // Pre-build initial frames (fill backBuffer with something)
   fillWholeBackbuffer();
@@ -192,12 +204,12 @@ void loop() {
     int16_t delta = curr - lastAngle;
 
     // Takes care of case where we cross the 360 degree back to 0 degree boundary
-    if (delta > 2048)  delta -= 4096;
-    if (delta < -2048) delta += 4096;
+    if (delta > 2048)  delta -= AS5600_COUNTS;
+    if (delta < -2048) delta += AS5600_COUNTS;
 
     // Compute rpm by measuring the delta-angle between polling
     float dt = (now - lastTime) * 1e-6;
-    motorRPM = (delta * 60.0) / (4096.0 * dt);
+    motorRPM = (delta * 60.0) / ((AS5600_COUNTS * 1.0) * dt);
 
     lastAngle = curr;
     lastTime = now;
@@ -209,8 +221,14 @@ void loop() {
     ledcWrite(0, (int)pwm);
     //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
   }
-  // Prepare for displaying new LED image.  See what angle the sphere is at.  RAW_ANGLE_OFFSET lets us add a shift to the image
-  uint16_t curRawAngle = (as5600.getRawAngle() + RAW_ANGLE_OFFSET) % 4096;  // modulo to wrap result in case of overflow
+  // Prepare for displaying new LED image.  See what angle the sphere is at.  rawAngleOffset lets us add a shift to the image
+  uint16_t curRawAngle = (as5600.getRawAngle() + rawAngleOffset) % AS5600_COUNTS;  // modulo to wrap result in case of overflow
+  if(scrollDisplay) {
+    rawAngleOffset--;
+    if(rawAngleOffset < 0) {
+      rawAngleOffset = AS5600_COUNTS;
+    }
+  }
 
   int32_t triggerPoint = curRawAngle - nextColumnAngle;
   if (triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
@@ -248,38 +266,23 @@ void loop() {
     */
 
     // Point the frontbuffer to the new data
-    //dlf swapBuffersAtomic();
+    swapBuffersAtomic();
   
+    // Go update the strips.  Display for a bit, then blank them.
     if (!dmaBusy) {
-    // Need to reverse the column index since the sphere is rotating clockwise which means it's 
-    // painting right to left from the framebuffer (i.e. highest index to lowest)
-    int reversedColumn = TOTAL_COLUMNS - 1 - columnIndex;
-  
-    // Start DMA for current column.  For each column, stream out the four rings led data
-    for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
-      uint8_t baseCol = ringIndex * COLS_PER_RING;
-      uint8_t *colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
-  
-      // Turn on the selected colunm bus buffer
-      digitalWrite(ringEnable[ringIndex], LOW); // enable
-      delayMicroseconds(1); // settle
-  
-      startColumnDma(colPtr);
-  
-      // Wait for the DMA to finish this column before sending the next one.
-      // This is a simple approach; can be optimized to queue multiple transfers.
-      while (dmaBusy) {
-        pollDmaComplete();
-       
-        // While waiting for the DMA to finish, do a partial update of the backbuffer.  There isn't enough time to fill the
-        // entire buffer at once, so we do a little bit during each column window.
-        //fillBackBufferPartially(backBufferFillIndex);
-        //if(backBufferFillIndex == TOTAL_COLUMNS - 4) {
-        //  backBufferFillIndex = 0;
-        //}
-      }
-        digitalWrite(ringEnable[ringIndex], HIGH); // disaable
-      }
+      updateColumnLEDs(columnIndex,UPDATE_STRIP);
+
+      // Done sending new data to display.  Now display for a programmable amount of time, then blank the displays.  This is so that 
+      // if we ever have to skip a column (due to CPU spending time servicing cache-misses, interrupts, etc.), then this column's data
+      // won't "smear" across the next column (would visually look like pixel widths doubling).
+
+      // Actually just commented this out as I think it looked better without the blanking.  That produced narrower pixels with gaps
+      // between each and looked grainer.  And the occasional flicker (a missed column goes dark) was more jarring than a smear.
+
+      //delayMicroseconds(STRIP_ON_TIME_BEFORE_BLANKING);
+
+      // Blank the strips
+      //updateColumnLEDs(columnIndex,BLANK_STRIP);
     }
   }
 }
@@ -288,6 +291,45 @@ void loop() {
 //  Functions
 // #############################################################
 
+// DMA the new column data to the four rings
+void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank) {
+  // Need to reverse the column index since the sphere is rotating clockwise which means it's 
+  // painting right to left from the framebuffer (i.e. highest index to lowest)
+  int reversedColumn = TOTAL_COLUMNS - 1 - columnIndex;
+
+  // Start DMA for current column.  For each column, stream out the four rings led data
+  for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
+    uint8_t baseCol = ringIndex * COLS_PER_RING;
+    uint8_t *colPtr;
+    if(updateOrBlank == UPDATE_STRIP) {
+      colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
+    } else {
+      colPtr = blankingBuffer;  // modulo 120 so we wrap when not starting at col-0 
+    }
+
+    // Turn on the selected colunm bus buffer
+    digitalWrite(ringEnable[ringIndex], LOW); // enable
+    delayMicroseconds(1); // settle
+
+    startColumnDma(colPtr);
+
+    // Wait for the DMA to finish this column before sending the next one.
+    // This is a simple approach; can be optimized to queue multiple transfers.
+    while (dmaBusy) {
+      pollDmaComplete();
+     
+      // While waiting for the DMA to finish, do a partial update of the backbuffer.  There isn't enough time to fill the
+      // entire buffer at once, so we do a little bit during each column window.
+      //fillBackBufferPartially(backBufferFillIndex);
+      //if(backBufferFillIndex == TOTAL_COLUMNS - 4) {
+      //  backBufferFillIndex = 0;
+      //}
+    }
+      digitalWrite(ringEnable[ringIndex], HIGH); // disaable
+  }
+}
+
+
 // Allocate contiguous memory for the entire frame (TOTAL_COLUMNS * COLUMN_PAYLOAD)
 void ensureBuffersAllocated() {
   if (frontBuffer == nullptr) {
@@ -295,6 +337,9 @@ void ensureBuffersAllocated() {
   }
   if (backBuffer == nullptr) {
     backBuffer  = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_BYTES, MALLOC_CAP_8BIT);
+  }
+  if (blankingBuffer == nullptr) {
+    blankingBuffer  = (uint8_t*)heap_caps_malloc(COLUMN_PAYLOAD, MALLOC_CAP_8BIT);
   }
   if (!frontBuffer || !backBuffer) {
     Serial.println("ERROR: buffer allocation failed. Reduce buffer sizes or check memory.");
@@ -344,6 +389,28 @@ void fillBackBufferPartially(uint8_t index){
   }
 }
 
+// Build a turned off column to use in blanking 
+void fillBlankingColumn() {
+
+    // Build an array of 48 RGB values (packed 0xRRGGBB)
+    uint32_t rgb48[LEDS_PER_COLUMN];
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+
+    for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
+      red =  0;
+      green = 0;
+      blue = 0;
+      rgb48[row] = (red << 16) | (green << 8) | (blue);
+    }
+
+    // Build the APA102-formatted column into a blanking buffer
+    uint8_t *dst = blankingBuffer;
+    buildColumn(dst, rgb48);
+
+}
+
 // Read and fill the backbuffer
 void fillWholeBackbuffer() {
 
@@ -370,10 +437,6 @@ void fillWholeBackbuffer() {
     // Build the APA102-formatted column into backBuffer
     uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
     buildColumn(dst, rgb48);
-
-    //dlf  just as a test, fill the front buffer and comment out the swap in the main loop (i.e. just use frontbuffer)
-    uint8_t *dst1 = frontBuffer + (col * COLUMN_PAYLOAD);
-    buildColumn(dst1, rgb48);
   }
 }
 
