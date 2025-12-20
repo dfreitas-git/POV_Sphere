@@ -1,12 +1,12 @@
 // POV_DotStar_DMA.ino
 // ESP32 Arduino sketch: APA102 (DotStar) driving with DMA, double-buffered,
-// 4x-per-revolution, and CD4052 ring multiplexing.
+// 4x-per-revolution, and one SPI channel multiplexed to DMA the dotStar data.
 //
 // Hardware assumptions:
 // - ESP32 (Arduino core)
 // - APA102 / DotStar LED chains: 4 rings, each 48 LEDs (total framebuffer 120x48).
 // - A SN74AHCT125 tri-state bus buffer to switch MOSI to one of 4 rings.
-// - Break-beam / optical sensor -> digital input pin (generates 4 pulses/per rev).
+// - AS5600 magnetic encoder is used to monitor the Sphere shaft angle
 //
 // Pin examples (change to match your wiring):
 
@@ -16,7 +16,8 @@
 #include <images.h>
 #include <Adafruit_AS5600.h>
 
-#define IMAGE image2
+//#define IMAGE testLine_data
+#define IMAGE gimp_image1
 
 const uint16_t DATALOG_DEPTH = 256;   // How many debug points we will store to print later
 uint16_t datalogIndex = 0;
@@ -363,29 +364,58 @@ void swapBuffersAtomic() {
 
 // Fill the backbuffer four columns at a time since we don't have time to fill it completely between updating led strips
 void fillBackBufferPartially(uint8_t index){
-  for (int col = index; col < index+4; ++col) {
 
-    // Build an array of 48 RGB values (packed 0xRRGGBB)
-    uint32_t rgb48[LEDS_PER_COLUMN];
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
+  uint32_t rgb48[LEDS_PER_COLUMN];
+  uint8_t red;
+  uint8_t green;
+  uint8_t blue;
+  const uint8_t* p = IMAGE.pixel_data;
 
-    for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
+  for (unsigned col = index; col < col+4; col++) {
+    for (unsigned row = 0; row < IMAGE.width; row++) {
+      uint8_t red = p[0];
+      uint8_t green = p[1];
+      uint8_t blue = p[2];
 
-      if(IMAGE[row][col] == 1) {
-        red =  128;
-      } else {
-        red =  0;
-      }
-      green = 0;
-      blue = 0;
       rgb48[row] = (red << 16) | (green << 8) | (blue);
+
+      // Build the APA102-formatted column into backBuffer
+      uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
+      buildColumn(dst, rgb48);
+
+      p += 3;
     }
 
     // Build the APA102-formatted column into backBuffer
     uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
     buildColumn(dst, rgb48);
+  }
+}
+
+// Read and fill the backbuffer
+void fillWholeBackbuffer() {
+
+  uint32_t rgb48[LEDS_PER_COLUMN];
+  uint8_t red;
+  uint8_t green;
+  uint8_t blue;
+  const uint8_t* p = IMAGE.pixel_data;
+
+  // Build an array of 48 RGB values (packed 0xRRGGBB)
+  for (unsigned col = 0; col < IMAGE.height; col++) {
+    for (unsigned row = 0; row < IMAGE.width; row++) {
+      uint8_t red = p[0];
+      uint8_t green = p[1];
+      uint8_t blue = p[2];
+
+      rgb48[row] = (red << 16) | (green << 8) | (blue);
+
+      // Build the APA102-formatted column into backBuffer
+      uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
+      buildColumn(dst, rgb48);
+
+      p += 3;
+    }
   }
 }
 
@@ -411,34 +441,6 @@ void fillBlankingColumn() {
 
 }
 
-// Read and fill the backbuffer
-void fillWholeBackbuffer() {
-
-  for (int col = 0; col < TOTAL_COLUMNS; ++col) {
-
-    // Build an array of 48 RGB values (packed 0xRRGGBB)
-    uint32_t rgb48[LEDS_PER_COLUMN];
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-
-    for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
-
-      if(IMAGE[row][col] == 1) {
-        red =  128;
-      } else {
-        red =  0;
-      }
-      green = 0;
-      blue = 0;
-      rgb48[row] = (red << 16) | (green << 8) | (blue);
-    }
-
-    // Build the APA102-formatted column into backBuffer
-    uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
-    buildColumn(dst, rgb48);
-  }
-}
 
 // Build one APA102 column (start+48*4+end) into dst
 void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
@@ -456,7 +458,7 @@ void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
     uint8_t g = (rgb48[i] >> 8) & 0xFF;
     uint8_t b = (rgb48[i]) & 0xFF;
     //dlf dst[idx++] = 0xE0 | 0x1F; // global brightness max (0xE0 + 5-bit)
-    dst[idx++] = 0xE0 | 0x07; // global low brightness  (0xE0 + 5-bit)
+    dst[idx++] = 0xE0 | 0x0F; // global low brightness  (0xE0 + 5-bit)
     dst[idx++] = b;
     dst[idx++] = g;
     dst[idx++] = r;
