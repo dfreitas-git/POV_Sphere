@@ -1,10 +1,10 @@
 // POV_DotStar_DMA.ino
-// ESP32 Arduino sketch: APA102 (DotStar) driving with DMA, double-buffered,
+// ESP32 Arduino sketch: SK9822 (DotStar) driving with DMA, double-buffered,
 // 4x-per-revolution, and one SPI channel multiplexed to DMA the dotStar data.
 //
 // Hardware assumptions:
 // - ESP32 (Arduino core)
-// - APA102 / DotStar LED chains: 4 rings, each 48 LEDs (total framebuffer 120x48).
+// - SK9822 / DotStar LED chains: 4 rings, each 48 LEDs (total framebuffer 120x48).
 // - A SN74AHCT125 tri-state bus buffer to switch MOSI to one of 4 rings.
 // - AS5600 magnetic encoder is used to monitor the Sphere shaft angle
 //
@@ -16,18 +16,17 @@
 #include <images.h>
 #include <Adafruit_AS5600.h>
 
-//#define IMAGE testLine_data
-#define IMAGE gimp_image1
+//#define IMAGE testLine
+#define IMAGE worldMap
+//#define IMAGE dashLine
 
-const uint16_t DATALOG_DEPTH = 256;   // How many debug points we will store to print later
-uint16_t datalogIndex = 0;
-uint32_t datalog[DATALOG_DEPTH];           // Array to store the datalog values
-uint32_t datalog1[DATALOG_DEPTH];           // Array to store the datalog values
-uint32_t datalog2[DATALOG_DEPTH];           // Array to store the datalog values
-uint32_t datalog3[DATALOG_DEPTH];           // Array to store the datalog values
+// DotStar /  byte order
+// NOTE: Many "APA102-compatible" strips (e.g. SK9822) use GRB internally.
+#define DOTSTAR_ORDER_GRB   1   // set to 0 for true APA102 (BGR)
 
-const int PIN_SPI_MOSI = 13;  // MOSI (APA102 DATA)
-const int PIN_SPI_SCLK = 14;  // SCLK (APA102 CLK)
+
+const int PIN_SPI_MOSI = 13;  // MOSI ( DATA)
+const int PIN_SPI_SCLK = 14;  // SCLK ( CLK)
 const int RING0_ENB = 2;       // SN74AHCT125 bus driver bit 0 select
 const int RING1_ENB = 4;       // SN74AHCT125 bus driver bit 1 select
 const int RING2_ENB = 16;      // SN74AHCT125 bus driver bit 2 select
@@ -41,8 +40,8 @@ const int RINGS = 4;            // number of rings
 const int COLS_PER_RING = TOTAL_COLUMNS/RINGS;            // number of rings
 const int ringEnable[] = {RING0_ENB, RING1_ENB, RING2_ENB, RING3_ENB};
 
-// APA102 specifics
-const int BYTES_PER_LED = 4;  // APA102 uses 4 bytes per LED (global, B, G, R in common libs)
+// dotStar specifics
+const int BYTES_PER_LED = 4;  // dotStart uses 4 bytes per LED (global, B, G, R in common libs)
 
 // We'll build each column as: [4-byte start frame][48 * 4 bytes LED frames][4-byte end frame]
 const int START_FRAME_BYTES = 4;
@@ -134,7 +133,7 @@ void pollDmaComplete();
 void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank);
 void fillBlankingColumn();
 void fillWholeBackbuffer(); 
-void fillBackBufferPartially(uint8_t index);
+//void fillBackBufferPartially(uint8_t index);
 void swapBuffersAtomic();
 void ensureBuffersAllocated();
 void freeBuffers();
@@ -248,24 +247,6 @@ void loop() {
       nextColumnAngle -= AS5600_COUNTS;
     }
 
-    /*
-    // debug datalogger
-    if(datalogIndex < DATALOG_DEPTH) {
-      datalog[datalogIndex] = curRawAngle;
-      datalog1[datalogIndex] = nextColumnAngle;
-      datalog2[datalogIndex] = columnIndex;
-      datalogIndex++;
-    } else {
-      // filled the datalogger.  Pint the resutls and halt
-      for(int i=0; i< DATALOG_DEPTH; i++) {
-        Serial.printf("currentRawAngle: %d   nextColumnAngle: %d   columnIndex %d\n",datalog[i],datalog1[i],datalog2[i]);
-      }
-      while(1) {
-      ledcWrite(0, 0);
-      }
-    }
-    */
-
     // Point the frontbuffer to the new data
     swapBuffersAtomic();
   
@@ -362,6 +343,7 @@ void swapBuffersAtomic() {
   interrupts();
 }
 
+/*
 // Fill the backbuffer four columns at a time since we don't have time to fill it completely between updating led strips
 void fillBackBufferPartially(uint8_t index){
 
@@ -377,45 +359,54 @@ void fillBackBufferPartially(uint8_t index){
       uint8_t green = p[1];
       uint8_t blue = p[2];
 
-      rgb48[row] = (red << 16) | (green << 8) | (blue);
+      rgb48[row] = (red << 11) | (green << 6) | (blue);
 
-      // Build the APA102-formatted column into backBuffer
+      // Build the dotStar-formatted column into backBuffer
       uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
       buildColumn(dst, rgb48);
 
       p += 3;
     }
 
-    // Build the APA102-formatted column into backBuffer
+    // Build the dotStar-formatted column into backBuffer
     uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
     buildColumn(dst, rgb48);
   }
 }
+*/
 
-// Read and fill the backbuffer
+
 void fillWholeBackbuffer() {
 
   uint32_t rgb48[LEDS_PER_COLUMN];
-  uint8_t red;
-  uint8_t green;
-  uint8_t blue;
-  const uint8_t* p = IMAGE.pixel_data;
 
-  // Build an array of 48 RGB values (packed 0xRRGGBB)
-  for (unsigned col = 0; col < IMAGE.height; col++) {
-    for (unsigned row = 0; row < IMAGE.width; row++) {
-      uint8_t red = p[0];
-      uint8_t green = p[1];
-      uint8_t blue = p[2];
+  for (unsigned col = 0; col < IMAGE.width; col++) {
 
-      rgb48[row] = (red << 16) | (green << 8) | (blue);
+    // Start at row 0, this column
+    const uint8_t* p = IMAGE.pixel_data + (col * 2);
 
-      // Build the APA102-formatted column into backBuffer
-      uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
-      buildColumn(dst, rgb48);
+    for (unsigned row = 0; row < IMAGE.height; row++) {
 
-      p += 3;
+      uint16_t rgb565 = (p[0] << 8) | p[1];
+
+      uint8_t r5 = (rgb565 >> 11) & 0x1F;
+      uint8_t g6 = (rgb565 >> 5)  & 0x3F;
+      uint8_t b5 =  rgb565        & 0x1F;
+
+      // Expand 5/6-bit channels to full 8-bit range (0–255)
+      uint8_t r8 = (r5 << 3) | (r5 >> 2);
+      uint8_t g8 = (g6 << 2) | (g6 >> 4);
+      uint8_t b8 = (b5 << 3) | (b5 >> 2);
+
+      // Pack as 0xRRGGBB for buildColumn()
+      rgb48[row] = (r8 << 16) | (g8 << 8) | b8;
+
+      // Advance to next row, same column
+      p += IMAGE.width * 2;
     }
+
+    uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
+    buildColumn(dst, rgb48);
   }
 }
 
@@ -435,36 +426,45 @@ void fillBlankingColumn() {
       rgb48[row] = (red << 16) | (green << 8) | (blue);
     }
 
-    // Build the APA102-formatted column into a blanking buffer
+    // Build the dotStar-formatted column into a blanking buffer
     uint8_t *dst = blankingBuffer;
     buildColumn(dst, rgb48);
 
 }
 
 
-// Build one APA102 column (start+48*4+end) into dst
+// Build one dotStar dotStar column (start+48*4+end) into dst
 void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
   int idx = 0;
 
-  // start frame (4 bytes zero)
+  // Start frame (32 bits of zero)
   dst[idx++] = 0x00;
   dst[idx++] = 0x00;
   dst[idx++] = 0x00;
   dst[idx++] = 0x00;
 
-  // 48 LED frames: [global brightness][B][G][R] (we'll set global brightness = 0xE0 | 31 for max)
   for (int i = 0; i < LEDS_PER_COLUMN; ++i) {
+
+    // Extract full 8-bit channels
     uint8_t r = (rgb48[i] >> 16) & 0xFF;
-    uint8_t g = (rgb48[i] >> 8) & 0xFF;
-    uint8_t b = (rgb48[i]) & 0xFF;
-    //dlf dst[idx++] = 0xE0 | 0x1F; // global brightness max (0xE0 + 5-bit)
-    dst[idx++] = 0xE0 | 0x0F; // global low brightness  (0xE0 + 5-bit)
-    dst[idx++] = b;
-    dst[idx++] = g;
-    dst[idx++] = r;
+    uint8_t g = (rgb48[i] >> 8)  & 0xFF;
+    uint8_t b =  rgb48[i]        & 0xFF;
+
+    // Global brightness: 0b111xxxxx (5-bit current control)
+    dst[idx++] = 0xE0 | 0x0F;   // ~50% brightness (good for POV)
+
+    #if DOTSTAR_ORDER_GRB
+        dst[idx++] = g;
+        dst[idx++] = r;
+        dst[idx++] = b;
+    #else
+        dst[idx++] = b;
+        dst[idx++] = g;
+        dst[idx++] = r;
+    #endif
   }
 
-  // end frame -- a small number of 0xFF bytes recommended; using 4 here
+  // End frame (enough 1s to latch last LEDs)
   dst[idx++] = 0xFF;
   dst[idx++] = 0xFF;
   dst[idx++] = 0xFF;
@@ -483,7 +483,7 @@ void initSpi() {
   // allow reasonably large transfers
   buscfg.max_transfer_sz = COLUMN_PAYLOAD * 2;
 
-  // device config (APA102 doesn't use CS)
+  // device config (dotStar doesn't use CS)
   spi_device_interface_config_t devcfg = {};
   devcfg.clock_speed_hz = 8000000; // 8 MHz recommended (tune as desired)
   devcfg.mode = 0;
