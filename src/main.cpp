@@ -13,17 +13,23 @@
 #include <Arduino.h>
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
-#include <images.h>
 #include <Adafruit_AS5600.h>
+#include <images.h>
+#include <testData.h>
+#include <gamma.h>
 
 //#define IMAGE testLine
 #define IMAGE worldMap
 //#define IMAGE dashLine
+//#define IMAGE img_green
 
 // DotStar /  byte order
-// NOTE: Many "APA102-compatible" strips (e.g. SK9822) use GRB internally.
-#define DOTSTAR_ORDER_GRB   1   // set to 0 for true APA102 (BGR)
-
+// NOTE: Many "APA102-compatible" strips (e.g. SK9822) may use GRB internally.
+#define DOTSTAR_ORDER_GRB   0   // set to 0 for true APA102 (BGR)
+#define GIMP_RGB565_LITTLE_ENDIAN  1  // Gimp ouputs rgb565 in little endian byte ordering
+#define BRIGHTNESS_R 255  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
+#define BRIGHTNESS_G 200  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
+#define BRIGHTNESS_B 200  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
 
 const int PIN_SPI_MOSI = 13;  // MOSI ( DATA)
 const int PIN_SPI_SCLK = 14;  // SCLK ( CLK)
@@ -92,7 +98,8 @@ volatile uint32_t pulseDt = 0;       // dt in microseconds between last two vali
 volatile uint32_t lastPulseMillis = 0; // millis() when last valid pulse arrived
 
 // ====== PID control ======
-float targetRPM = 280.0;
+//float targetRPM = 280.0;
+float targetRPM = 300.0;
 
 float Kp = 0.2f;
 float Ki = 0.8f;
@@ -387,11 +394,19 @@ void fillWholeBackbuffer() {
 
     for (unsigned row = 0; row < IMAGE.height; row++) {
 
-      uint16_t rgb565 = (p[0] << 8) | p[1];
+      #if GIMP_RGB565_LITTLE_ENDIAN
+        uint16_t rgb565 = (p[1] << 8) | p[0];
+      #else
+        uint16_t rgb565 = (p[0] << 8) | p[1];
+      #endif
 
       uint8_t r5 = (rgb565 >> 11) & 0x1F;
       uint8_t g6 = (rgb565 >> 5)  & 0x3F;
       uint8_t b5 =  rgb565        & 0x1F;
+
+      //uint8_t b5 = (rgb565 >> 11) & 0x1F;
+      //uint8_t g6 = (rgb565 >> 5)  & 0x3F;
+      //uint8_t r5 =  rgb565        & 0x1F;
 
       // Expand 5/6-bit channels to full 8-bit range (0–255)
       uint8_t r8 = (r5 << 3) | (r5 >> 2);
@@ -450,8 +465,19 @@ void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
     uint8_t g = (rgb48[i] >> 8)  & 0xFF;
     uint8_t b =  rgb48[i]        & 0xFF;
 
+    // Apply gamma correction
+    r = gamma24[r];
+    g = gamma26[g];
+    b = gamma30[b];
+
+    // Additional brightness control per color channel outside the dotStar built in global control
+    r = (r * BRIGHTNESS_R) >> 8;
+    g = (g * BRIGHTNESS_G) >> 8;
+    b = (b * BRIGHTNESS_B) >> 8;
+
     // Global brightness: 0b111xxxxx (5-bit current control)
-    dst[idx++] = 0xE0 | 0x0F;   // ~50% brightness (good for POV)
+    //dst[idx++] = 0xE0 | 0x0F;   // ~50% brightness (good for POV)
+    dst[idx++] = 0xE0 | 0x07;   // ~50% brightness (good for POV)
 
     #if DOTSTAR_ORDER_GRB
         dst[idx++] = g;
