@@ -702,10 +702,10 @@ static const struct {
 /* GIMP RGB C-Source image dump (world-map.c) */
 
 static const struct {
-  uint8_t  	 width;
-  uint8_t  	 height;
-  uint8_t  	 bytes_per_pixel; /* 2:RGB16, 3:RGB, 4:RGBA */ 
-  uint8_t 	 pixel_data[120 * 48 * 2 + 1];
+  guint   	 width;
+  guint   	 height;
+  guint   	 bytes_per_pixel; /* 2:RGB16, 3:RGB, 4:RGBA */ 
+  guint8 	 pixel_data[120 * 48 * 2 + 1];
 } worldMap = {
   120, 48, 2,
   "n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\"n\""

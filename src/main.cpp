@@ -14,6 +14,7 @@
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
 #include <Adafruit_AS5600.h>
+#include <gimp_compat.h>
 #include <images.h>
 #include <testData.h>
 #include <gamma.h>
