@@ -7,8 +7,11 @@
 // - SK9822 / DotStar LED chains: 4 rings, each 48 LEDs (total framebuffer 120x48).
 // - A SN74AHCT125 tri-state bus buffer to switch MOSI to one of 4 rings.
 // - AS5600 magnetic encoder is used to monitor the Sphere shaft angle
+// - Using a 128x64 OLED and rotary-encoder/switch for a simple menu system that will run on core-0.  
+//   The critical timing/DMA will run from core-1
 //
-// Pin examples (change to match your wiring):
+// NOTE: Most of this code was written by chatGPT.  I just modified to add menu specifics, hardware specifics, etc.
+// dlf 12/28/2025
 
 #include <Arduino.h>
 #include <driver/spi_master.h>
@@ -18,12 +21,66 @@
 #include <images.h>
 #include <testData.h>
 #include <gamma.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <ClickEncoder.h>
+#include <Ticker.h>
+
+
+/* ===================== Menu Types ===================== */
+enum MenuItemType {
+  MENU_SUBMENU,
+  MENU_ACTION,
+  MENU_INT_VALUE,
+  MENU_FLOAT_VALUE,
+  MENU_LIST
+};
+
+// Prototypes
+struct MenuItem;
+typedef void (*ActionCallback)(MenuItem*);
+void onOff(MenuItem*) ;
+void encoderService() ;
+void buildMenu() ;
+void drawMenu() ;
+void handleRotation(int delta) ;
+void handleClick() ;
+void handleDoubleClick() ;
+void updateBlink() ;
+void setupMotor() ;
+void initSpi();
+void buildColumn(uint8_t *dst, uint32_t rgb48[]);
+void startColumnDma(uint8_t *columnData);
+void pollDmaComplete();
+void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank);
+void fillBlankingColumn();
+void fillWholeBackbuffer(); 
+void swapBuffersAtomic();
+void ensureBuffersAllocated();
+void freeBuffers();
+void uiTask(void* parameter) ;
+void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank) ;
+void ensureBuffersAllocated() ;
+void freeBuffers() ;
+void swapBuffersAtomic() ;
+void fillBackBufferPartially(uint8_t index);
+void fillWholeBackbuffer() ;
+void fillBlankingColumn() ;
+void buildColumn(uint8_t *dst, uint32_t rgb48[]) ;
+void initSpi() ;
+void startColumnDma(uint8_t *columnData) ;
+void pollDmaComplete() ;
+void setupMotor() ;
 
 //#define IMAGE testLine
 #define IMAGE worldMap
 //#define IMAGE dashLine
 //#define IMAGE img_green
 
+// ###########################################################
+//   DotStar, LED, DMA, critical timing code running on core-1
+// ###########################################################
 // DotStar /  byte order
 // NOTE: Many "APA102-compatible" strips (e.g. SK9822) may use GRB internally.
 #define DOTSTAR_ORDER_GRB   0   // set to 0 for true APA102 (BGR)
@@ -99,7 +156,6 @@ volatile uint32_t pulseDt = 0;       // dt in microseconds between last two vali
 volatile uint32_t lastPulseMillis = 0; // millis() when last valid pulse arrived
 
 // ====== PID control ======
-//float targetRPM = 280.0;
 float targetRPM = 300.0;
 
 float Kp = 0.2f;
@@ -131,6 +187,319 @@ uint8_t backBufferFillIndex = 0;  // We only write the backbuffer a few columns 
 volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 
 
+
+// ###########################################################
+//   UI core-0 OLED/rotary-encoder/switch definitions
+// ###########################################################
+/* ===================== OLED ===================== */
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define SDA_OLED 32
+#define SCL_OLED 33
+#define OLED_RESET    -1     // no reset pin
+#define OLED_ADDR     0x3C
+
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET);
+
+/* ===================== Encoder ===================== */
+#define ENC_A 35
+#define ENC_B 34
+#define ENC_BTN 27
+
+ClickEncoder encoder(ENC_A, ENC_B, ENC_BTN, 4);
+Ticker encoderTicker;
+
+/* ===================== Menu Item ===================== */
+struct MenuItem {
+  const char* name;
+  MenuItemType type;
+  MenuItem* parent;
+
+  /* For submenu */
+  MenuItem** children;
+  uint8_t childCount;
+
+  /* For callbacks */
+  ActionCallback callback;
+
+  /* For int value */
+  int* intValue;
+  int minIntVal;
+  int maxIntVal;
+
+  /* For float value */
+  float* floatValue;
+  float minFloatVal;
+  float maxFloatVal;
+
+  /* For option list */
+  const char** options;
+  uint8_t optionCount;
+  uint8_t* optionIndex;
+};
+
+TaskHandle_t uiTaskHandle;
+
+/* ===================== Global Menu State ===================== */
+MenuItem* currentMenu;
+uint8_t currentIndex = 0;
+bool editingValue = false;
+
+/* Blink control */
+bool blinkOn = true;
+uint32_t lastBlink = 0;
+const uint32_t blinkInterval = 400;  // ms
+
+
+/* ===================== Encoder ISR ===================== */
+void encoderService() {
+  encoder.service();
+}
+
+/* ===================== Example Variables ===================== */
+int brightness = 3;  // Sphere LED brightness
+boolean onOffFlag = 1;   // Turn the motor on or off
+uint8_t imageToDisplayIndex = 0;
+uint8_t onOffIndex = 1;  // Start with the motor on
+
+// Images to display on the Sphere
+const int NUMBER_OF_DISPLAY_FILES = 3;
+const char* imageToDisplay[] = {
+  "WorldMap",
+  "Hello",
+  "L-Pattern"
+};
+
+// Turn the motor on or off
+const int ON_OFF_STRINGS = 2;
+const char* onOffStrings[] = {
+  "Off",
+  "On",
+};
+
+/* ===================== Callbacks ===================== */
+
+void onOff(MenuItem*) {
+  if(onOffFlag == 1) {
+    onOffFlag = 0;
+    onOffIndex=0;
+     Serial.println("Turn Off");
+  } else {
+    onOffFlag = 1;
+    onOffIndex=1;
+     Serial.println("Turn On");
+  }
+}
+
+/* ===================== Menu Declarations ===================== */
+MenuItem menuMain;
+MenuItem menuSettings;
+MenuItem menuBrightness;
+MenuItem menuDisplay;
+MenuItem menuRPM;
+MenuItem menuOnOff;
+
+/* ===================== Menu Construction ===================== */
+MenuItem* settingsChildren[] = {
+  &menuBrightness,
+  &menuRPM
+};
+
+MenuItem* mainChildren[] = {
+  &menuDisplay,
+  &menuSettings,
+  &menuOnOff
+};
+
+void buildMenu() {
+
+  menuMain = {
+    "Main Menu",
+    MENU_SUBMENU,
+    nullptr,
+    mainChildren,
+    3,
+    nullptr,
+    nullptr, 0, 0,
+    nullptr, 0, 0,
+    nullptr, 0, nullptr
+  };
+
+  menuSettings = {
+    "Settings",
+    MENU_SUBMENU,
+    &menuMain,
+    settingsChildren,
+    2,
+    nullptr,
+    nullptr, 0, 0,
+    nullptr, 0, 0,
+    nullptr, 0, nullptr
+  };
+
+  menuBrightness = {
+    "Brightness",
+    MENU_INT_VALUE,
+    &menuSettings,
+    nullptr, 0,
+    nullptr,
+    &brightness, 0, 10,
+    nullptr, 0, 0,
+    nullptr, 0, nullptr
+  };
+
+  menuDisplay = {
+    "Display",
+    MENU_LIST,
+    &menuSettings,
+    nullptr, 0,
+    nullptr,
+    nullptr, 0, 0,
+    nullptr, 0, 0,
+    imageToDisplay, NUMBER_OF_DISPLAY_FILES, &imageToDisplayIndex
+  };
+
+  menuOnOff = {
+    "On/Off",
+    MENU_LIST,
+    &menuSettings,
+    nullptr, 0,
+    onOff,
+    nullptr, 0, 0,
+    nullptr, 0, 0,
+    onOffStrings, ON_OFF_STRINGS, &onOffIndex
+  };
+
+  menuRPM = {
+    "Motor RPM",
+    MENU_FLOAT_VALUE,
+    &menuSettings,
+    nullptr, 0,
+    nullptr,
+    nullptr, 0, 0,
+    &targetRPM, 200.0, 400.0,
+    nullptr, 0, nullptr
+  };
+
+  currentMenu = &menuMain;
+}
+
+/* ===================== Display ===================== */
+void drawMenu() {
+  oled.clearDisplay();
+  oled.setTextSize(1);
+  oled.setTextColor(SSD1306_WHITE);
+
+  for (uint8_t i = 0; i < currentMenu->childCount; i++) {
+    int y = i * 10;
+
+    if (i == currentIndex) {
+      oled.setCursor(0, y);
+      oled.print(">");
+    }
+
+    oled.setCursor(10, y);
+    oled.print(currentMenu->children[i]->name);
+
+    MenuItem* item = currentMenu->children[i];
+
+    bool showValue = true;
+
+    if (editingValue && i == currentIndex) {
+      showValue = blinkOn;
+    }
+
+    if (item->type == MENU_INT_VALUE && showValue) {
+      oled.setCursor(90, y);
+      oled.print(*item->intValue);
+    }
+
+    if (item->type == MENU_FLOAT_VALUE && showValue) {
+      oled.setCursor(90, y);
+      oled.print(int(*item->floatValue));
+    }
+
+    if (item->type == MENU_LIST && showValue) {
+      oled.setCursor(70, y);
+      oled.print(item->options[*item->optionIndex]);
+    }
+  }
+
+  oled.display();
+}
+
+/* ===================== Input Handling ===================== */
+void handleRotation(int delta) {
+  MenuItem* item = currentMenu->children[currentIndex];
+
+  if (editingValue) {
+    if (item->type == MENU_INT_VALUE) {
+      *item->intValue = constrain(
+        *item->intValue + delta,
+        item->minIntVal,
+        item->maxIntVal
+      );
+    }
+    if (item->type == MENU_FLOAT_VALUE) {
+      *item->floatValue = constrain(
+        *item->floatValue + delta,
+        item->minFloatVal,
+        item->maxFloatVal
+      );
+    }
+
+    if (item->type == MENU_LIST) {
+      int idx = *item->optionIndex + delta;
+      if (idx < 0) idx = 0;
+      if (idx >= item->optionCount) idx = item->optionCount - 1;
+      *item->optionIndex = idx;
+    }
+  } else {
+    int newIndex = currentIndex + delta;
+    if (newIndex < 0) newIndex = 0;
+    if (newIndex >= currentMenu->childCount)
+      newIndex = currentMenu->childCount - 1;
+    currentIndex = newIndex;
+  }
+}
+
+void handleClick() {
+  MenuItem* item = currentMenu->children[currentIndex];
+
+  if (item->type == MENU_SUBMENU) {
+    currentMenu = item;
+    currentIndex = 0;
+  }
+  else if (item->type == MENU_ACTION) {
+    if (item->callback) item->callback(item);
+  }
+  else {
+    editingValue = !editingValue;
+  }
+}
+
+void handleDoubleClick() {
+  if (editingValue) {
+    editingValue = false;
+    return;
+  }
+
+  if (currentMenu->parent) {
+    currentMenu = currentMenu->parent;
+    currentIndex = 0;
+  }
+}
+
+// For blinking the edited menu item
+void updateBlink() {
+  uint32_t now = millis();
+  if (now - lastBlink >= blinkInterval) {
+    blinkOn = !blinkOn;
+    lastBlink = now;
+  }
+}
+
+
 // ---------- Forward declarations ----------
 void setupMotor() ;
 float updatePID(float rpmMeasured, float targetRPM);
@@ -146,8 +515,9 @@ void swapBuffersAtomic();
 void ensureBuffersAllocated();
 void freeBuffers();
 
+
 //#########################################
-// Setup Section
+// Main Setup Code
 //#########################################
 void setup() {
   Serial.begin(115200);
@@ -159,9 +529,36 @@ void setup() {
   pinMode(RING2_ENB, OUTPUT);
   pinMode(RING3_ENB, OUTPUT);
 
+  //Set up OLED on 2nd I2C bus
+  Wire1.begin(SDA_OLED, SCL_OLED, 400000); // SDA, SCL, clock
+
+  if (!oled.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+    Serial.println("SSD1306 allocation failed");
+    while (true);
+  }
+  oled.clearDisplay();
+
+  // Set up the rotary encoder/switch
+  encoderTicker.attach_ms(1, encoderService);
+
+  // Fill the initial menu 
+  buildMenu();
+
+  // Create tase to run on core-0 for the UI code
+  xTaskCreatePinnedToCore(
+    uiTask,
+    "UI Task",
+    4096,
+    nullptr,
+    1,
+    &uiTaskHandle,
+    0   //  Core 0
+  );
+
+  // Set up pwm
   setupMotor();
 
-  // Uses i2c interface to AS5600 to read angle
+  // Uses default i2c interface to AS5600 to read angle
   if (!as5600.begin()) {
     Serial.println("Could not find AS5600 sensor, check wiring!");
     while (1) {
@@ -196,9 +593,33 @@ void setup() {
   Serial.println("Setup complete.");
 }
 
-//#########################################
-// Main Loop
-//#########################################
+//###################################################################
+// FOR loop for core-0
+// Task for core-0 (where we will run all the UI and SDCard reading). 
+//####################################################################
+void uiTask(void* parameter) {
+  for (;;) {
+    int16_t delta = encoder.getValue();
+    if (delta != 0) {
+      handleRotation(delta);
+    }
+
+    ClickEncoder::Button b = encoder.getButton();
+    if (b == ClickEncoder::Clicked) {
+      handleClick();
+    }
+    if (b == ClickEncoder::DoubleClicked) {
+      handleDoubleClick();
+    }
+
+    updateBlink();
+    drawMenu();
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+}
+//#########################################################################
+// Main Loop for core-1. Core-1 will run the critical POV data DMA loop.
+//#########################################################################
 void loop() {
 
   // Poll DMA completion regularly (non-blocking).  Unset dmaBusy once DMA is complete
@@ -320,7 +741,9 @@ void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank) {
 }
 
 
+//#################################################################################
 // Allocate contiguous memory for the entire frame (TOTAL_COLUMNS * COLUMN_PAYLOAD)
+//#################################################################################
 void ensureBuffersAllocated() {
   if (frontBuffer == nullptr) {
     frontBuffer = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_BYTES, MALLOC_CAP_8BIT);
@@ -337,13 +760,18 @@ void ensureBuffersAllocated() {
   }
 }
 
+//########################################################
+// Free up framebuffer memory
+//########################################################
 void freeBuffers() {
   if (frontBuffer) { free(frontBuffer); frontBuffer = nullptr; }
   if (backBuffer)  { free(backBuffer);  backBuffer  = nullptr; }
 }
 
+//########################################################
+// Atomic swap of front/back pointers. Must be fast.
+//########################################################
 void swapBuffersAtomic() {
-  // Atomic swap of front/back pointers. Must be fast.
   noInterrupts();
   uint8_t *tmp = frontBuffer;
   frontBuffer = backBuffer;
@@ -351,8 +779,11 @@ void swapBuffersAtomic() {
   interrupts();
 }
 
-/*
+
+//########################################################
 // Fill the backbuffer four columns at a time since we don't have time to fill it completely between updating led strips
+//########################################################
+/*
 void fillBackBufferPartially(uint8_t index){
 
   uint32_t rgb48[LEDS_PER_COLUMN];
@@ -384,7 +815,9 @@ void fillBackBufferPartially(uint8_t index){
 */
 
 
+//########################################################
 void fillWholeBackbuffer() {
+//########################################################
 
   uint32_t rgb48[LEDS_PER_COLUMN];
 
@@ -426,7 +859,9 @@ void fillWholeBackbuffer() {
   }
 }
 
+//########################################################
 // Build a turned off column to use in blanking 
+//########################################################
 void fillBlankingColumn() {
 
     // Build an array of 48 RGB values (packed 0xRRGGBB)
@@ -449,7 +884,9 @@ void fillBlankingColumn() {
 }
 
 
+//########################################################
 // Build one dotStar dotStar column (start+48*4+end) into dst
+//########################################################
 void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
   int idx = 0;
 
@@ -498,7 +935,9 @@ void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
   dst[idx++] = 0xFF;
 }
 
+//########################################################
 // ---------- SPI DMA setup ----------
+//########################################################
 void initSpi() {
   // configure SPI bus
   spi_bus_config_t buscfg = {};
@@ -532,7 +971,9 @@ void initSpi() {
   //Serial.println("SPI DMA initialized");
 }
 
+//########################################################
 // Start a DMA transfer of exactly one column (non-blocking).
+//########################################################
 void startColumnDma(uint8_t *columnData) {
   if (!spi) return;
 
@@ -560,7 +1001,9 @@ void startColumnDma(uint8_t *columnData) {
   }
 }
 
+//########################################################
 // Poll for DMA completion and free transaction
+//########################################################
 void pollDmaComplete() {
   if (!dmaBusy) return;
 
@@ -578,8 +1021,10 @@ void pollDmaComplete() {
 
 
 
+//########################################################
 // Update the PWM value sent to the motor via a PID loop
 // rpmMeasured = measured RPM (float),  targetRPM = desired RPM (global)
+//########################################################
 float updatePID(float rpmMeasured, float targetRPM) {
   uint32_t now = millis();
   float dt = (lastPidMs == 0) ? 0.05f : ( (now - lastPidMs) / 1000.0f );
@@ -644,7 +1089,9 @@ float updatePID(float rpmMeasured, float targetRPM) {
   return output;
 }
 
+//#######################################
 // Assign pins and be sure motor is off
+//#######################################
 void setupMotor() {
     ledcSetup(0, 20000, 8);   // 20 kHz PWM, 8-bit resolution
     ledcAttachPin(MOTOR_PWM_PIN, 0);
