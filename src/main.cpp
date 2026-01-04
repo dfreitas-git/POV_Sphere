@@ -50,33 +50,17 @@ void handleDoubleClick() ;
 void updateBlink() ;
 void setupMotor() ;
 void initSpi();
-void buildColumn(uint8_t *dst, uint32_t rgb48[]);
+void buildColumn(uint8_t *dst, uint8_t *colPtr);
 void startColumnDma(uint8_t *columnData);
 void pollDmaComplete();
-void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank);
-void fillBlankingColumn();
-void fillWholeBackbuffer(); 
+void updateColumnLEDs(uint16_t columnIndex);
+void fillBackbuffer(); 
 void swapBuffersAtomic();
 void ensureBuffersAllocated();
 void freeBuffers();
 void uiTask(void* parameter) ;
-void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank) ;
-void ensureBuffersAllocated() ;
-void freeBuffers() ;
-void swapBuffersAtomic() ;
-void fillBackBufferPartially(uint8_t index);
-void fillWholeBackbuffer() ;
-void fillBlankingColumn() ;
-void buildColumn(uint8_t *dst, uint32_t rgb48[]) ;
-void initSpi() ;
-void startColumnDma(uint8_t *columnData) ;
-void pollDmaComplete() ;
-void setupMotor() ;
+float updatePID(float rpmMeasured, float targetRPM);
 
-//#define IMAGE testLine
-#define IMAGE worldMap
-//#define IMAGE dashLine
-//#define IMAGE img_green
 
 // ###########################################################
 //   DotStar, LED, DMA, critical timing code running on core-1
@@ -98,7 +82,6 @@ const int RING3_ENB = 17;      // SN74AHCT125 bus driver bit 3 select
 
 // LED / frame geometry
 const int ROWS = 48;            // vertical rows (LEDs per ring)
-
 const int TOTAL_COLUMNS = 120;  // total angular columns in a revolution
 const int RINGS = 4;            // number of rings
 const int COLS_PER_RING = TOTAL_COLUMNS/RINGS;            // number of rings
@@ -107,10 +90,13 @@ const int ringEnable[] = {RING0_ENB, RING1_ENB, RING2_ENB, RING3_ENB};
 // dotStar specifics
 const int BYTES_PER_LED = 4;  // dotStart uses 4 bytes per LED (global, B, G, R in common libs)
 
-// We'll build each column as: [4-byte start frame][48 * 4 bytes LED frames][4-byte end frame]
 const int START_FRAME_BYTES = 4;
 const int END_FRAME_BYTES = 4;
 const int LEDS_PER_COLUMN = ROWS;
+const int FRAME_COLUMN_BYTES = LEDS_PER_COLUMN * 3; // one byte per R/G/B
+const int TOTAL_COLUMNS_RGB_BYTES = TOTAL_COLUMNS * LEDS_PER_COLUMN * 3;  // one byte per R/G/B
+
+// We'll build each column as: [4-byte start frame][48 * 4 bytes LED frames][4-byte end frame]
 const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED) + END_FRAME_BYTES;
 const int TOTAL_COLUMNS_BYTES = TOTAL_COLUMNS * COLUMN_PAYLOAD;
 
@@ -126,11 +112,6 @@ uint32_t angleUnwrapped = 0;
 
 uint32_t nextColumnAngle = 0;
 uint16_t columnIndex = 0;
-
-// Time to display new column data before blanking
-const uint16_t STRIP_ON_TIME_BEFORE_BLANKING = 10;   // in microSeconds
-const boolean UPDATE_STRIP = 1;  // Flag that says "update the column LED's"
-const boolean BLANK_STRIP = 0;   // Flag that says "blank the column LED's"
 
 // Use integer math; keep remainder for precision
 constexpr uint32_t COLUMN_STEP = AS5600_COUNTS / COLUMNS;      // 34
@@ -156,7 +137,7 @@ volatile uint32_t pulseDt = 0;       // dt in microseconds between last two vali
 volatile uint32_t lastPulseMillis = 0; // millis() when last valid pulse arrived
 
 // ====== PID control ======
-float targetRPM = 300.0;
+float targetRPM = 320.0;
 
 float Kp = 0.2f;
 float Ki = 0.8f;
@@ -179,10 +160,9 @@ const float DERIV_FILTER_TAU = 0.05f; // derivative low-pass (seconds). 0.01..0.
 spi_device_handle_t spi = nullptr;
 
 // Double buffers allocated on heap (to make swapping trivial)
-uint8_t *frontBuffer = nullptr; // displayed buffer (contains TOTAL_COLUMNS columns sequentially)
-uint8_t *backBuffer  = nullptr; // written by CPU (next frame)
-uint8_t *blankingBuffer  = nullptr; // one column set to all zero for blanking the column
-uint8_t backBufferFillIndex = 0;  // We only write the backbuffer a few columns at a time.  This index points to the next column to write.
+uint8_t *frontBuffer = nullptr;   // Used by core-1.  Displayed buffer (contains TOTAL_COLUMNS columns sequentially)
+uint8_t *backBuffer  = nullptr;   // Written by core-0 (next frame)
+volatile boolean backBufferFilled = false;  // Set to true when a valid image has been loaded into it.
 
 volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 
@@ -256,19 +236,16 @@ void encoderService() {
   encoder.service();
 }
 
-/* ===================== Example Variables ===================== */
+/* ===================== Global Variables ===================== */
 int brightness = 3;  // Sphere LED brightness
+uint8_t fiveBitBright; // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
 boolean onOffFlag = 1;   // Turn the motor on or off
 uint8_t imageToDisplayIndex = 0;
 uint8_t onOffIndex = 1;  // Start with the motor on
 
 // Images to display on the Sphere
-const int NUMBER_OF_DISPLAY_FILES = 3;
-const char* imageToDisplay[] = {
-  "WorldMap",
-  "Hello",
-  "L-Pattern"
-};
+const int NUMBER_OF_DISPLAY_FILES = IMG_COUNT;
+const char* imageToDisplay[IMG_COUNT];
 
 // Turn the motor on or off
 const int ON_OFF_STRINGS = 2;
@@ -348,6 +325,10 @@ void buildMenu() {
     nullptr, 0, nullptr
   };
 
+  for (int i=0;i<IMG_COUNT;i++) {
+    imageToDisplay[i] = imageTable[i]->name;
+  }
+
   menuDisplay = {
     "Display",
     MENU_LIST,
@@ -397,14 +378,11 @@ void drawMenu() {
       oled.setCursor(0, y);
       oled.print(">");
     }
-
     oled.setCursor(10, y);
     oled.print(currentMenu->children[i]->name);
 
     MenuItem* item = currentMenu->children[i];
-
     bool showValue = true;
-
     if (editingValue && i == currentIndex) {
       showValue = blinkOn;
     }
@@ -420,7 +398,7 @@ void drawMenu() {
     }
 
     if (item->type == MENU_LIST && showValue) {
-      oled.setCursor(70, y);
+      oled.setCursor(60, y);
       oled.print(item->options[*item->optionIndex]);
     }
   }
@@ -449,16 +427,19 @@ void handleRotation(int delta) {
     }
 
     if (item->type == MENU_LIST) {
-      int idx = *item->optionIndex + delta;
-      if (idx < 0) idx = 0;
-      if (idx >= item->optionCount) idx = item->optionCount - 1;
+
+      // Wrap the point back to the start if we roll off the end of the list
+      int idx = (*item->optionIndex + delta) % item->optionCount;
+      if (idx < 0) {
+        idx = idx + item->optionCount;
+      }
       *item->optionIndex = idx;
     }
   } else {
-    int newIndex = currentIndex + delta;
-    if (newIndex < 0) newIndex = 0;
-    if (newIndex >= currentMenu->childCount)
-      newIndex = currentMenu->childCount - 1;
+    int newIndex = (currentIndex + delta) % currentMenu->childCount;
+    if (newIndex < 0) {
+      newIndex = newIndex + currentMenu->childCount;
+    }
     currentIndex = newIndex;
   }
 }
@@ -469,11 +450,11 @@ void handleClick() {
   if (item->type == MENU_SUBMENU) {
     currentMenu = item;
     currentIndex = 0;
-  }
-  else if (item->type == MENU_ACTION) {
-    if (item->callback) item->callback(item);
-  }
-  else {
+  } else if (item->type == MENU_ACTION) {
+    if (item->callback) {
+      item->callback(item);
+    }
+  } else {
     editingValue = !editingValue;
   }
 }
@@ -498,23 +479,6 @@ void updateBlink() {
     lastBlink = now;
   }
 }
-
-
-// ---------- Forward declarations ----------
-void setupMotor() ;
-float updatePID(float rpmMeasured, float targetRPM);
-void initSpi();
-void buildColumn(uint8_t *dst, uint32_t rgb48[]);
-void startColumnDma(uint8_t *columnData);
-void pollDmaComplete();
-void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank);
-void fillBlankingColumn();
-void fillWholeBackbuffer(); 
-//void fillBackBufferPartially(uint8_t index);
-void swapBuffersAtomic();
-void ensureBuffersAllocated();
-void freeBuffers();
-
 
 //#########################################
 // Main Setup Code
@@ -569,12 +533,6 @@ void setup() {
   // Allocate buffers
   ensureBuffersAllocated();
 
-  // Used to clear a column for blanking
-  fillBlankingColumn();
-
-  // Pre-build initial frames (fill backBuffer with something)
-  fillWholeBackbuffer();
-
   // Initialize SPI with DMA
   initSpi();
 
@@ -589,7 +547,6 @@ void setup() {
 
   constexpr uint32_t base_step = AS5600_COUNTS / COLUMNS;
   nextColumnAngle = (columnIndex + 1) * base_step;
-
   Serial.println("Setup complete.");
 }
 
@@ -614,7 +571,18 @@ void uiTask(void* parameter) {
 
     updateBlink();
     drawMenu();
-    vTaskDelay(pdMS_TO_TICKS(20));
+
+    // Global brightness: 0b111xxxxx (5-bit current control)
+    // Read the brightness setting (can be changed in the OLED menu)  Map to 0-1F
+    fiveBitBright = map(brightness,0,10,0,31);
+
+    // Load the backBuffer with the next frame to display
+    if (!backBufferFilled) {
+      fillBackbuffer();
+      backBufferFilled = true;
+    }
+
+    //vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
 //#########################################################################
@@ -628,6 +596,7 @@ void loop() {
   // Check the motor speed
   uint32_t now = micros();
 
+  // Periodically measure the motor rpm for the PID control to use
   if (now - lastTime >= samplePeriod_us) {
     uint16_t curr = as5600.getRawAngle();
     int16_t delta = curr - lastAngle;
@@ -663,37 +632,34 @@ void loop() {
   if (triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
   if (triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
 
-  // Once the current angle has reached the next column, trigger a DMA transfer
+  // Once the current angle has reached the next column, trigger a DMA transfer if the backBuffer is ready with a new frame
   if (triggerPoint >= 0) {
+
+    // Each time the sphere gets to the 0th column, swap in a new backBuffer if it is filled with the next image
+    if(curRawAngle > 0 && curRawAngle < 34) {    // Each 3-degree (360/120) column is 34 raw counts wide
+      if(backBufferFilled) {
+        // Point the frontbuffer to the new data
+        swapBuffersAtomic();
+
+       // Reset flag so core-0 can start filling the back buffer again
+       backBufferFilled = false;
+      }
+    }
 
     // Check to see how many columns the shaft advanced.  Should usually be 1, but if there was some CPU delay the shaft may have advanced further
     uint32_t columnsAdvanced = (triggerPoint * COLUMNS / AS5600_COUNTS) + 1;
 
     columnIndex = (columnIndex + columnsAdvanced) % COLUMNS;
     nextColumnAngle = (columnIndex + 1) * (AS5600_COUNTS / COLUMNS);
+
     // Take care of angle wrapping from 360->0
     if (nextColumnAngle >= AS5600_COUNTS) {
       nextColumnAngle -= AS5600_COUNTS;
     }
-
-    // Point the frontbuffer to the new data
-    swapBuffersAtomic();
   
-    // Go update the strips.  Display for a bit, then blank them.
+    // Go update the strips. 
     if (!dmaBusy) {
-      updateColumnLEDs(columnIndex,UPDATE_STRIP);
-
-      // Done sending new data to display.  Now display for a programmable amount of time, then blank the displays.  This is so that 
-      // if we ever have to skip a column (due to CPU spending time servicing cache-misses, interrupts, etc.), then this column's data
-      // won't "smear" across the next column (would visually look like pixel widths doubling).
-
-      // Actually just commented this out as I think it looked better without the blanking.  That produced narrower pixels with gaps
-      // between each and looked grainer.  And the occasional flicker (a missed column goes dark) was more jarring than a smear.
-
-      //delayMicroseconds(STRIP_ON_TIME_BEFORE_BLANKING);
-
-      // Blank the strips
-      //updateColumnLEDs(columnIndex,BLANK_STRIP);
+      updateColumnLEDs(columnIndex);
     }
   }
 }
@@ -702,39 +668,39 @@ void loop() {
 //  Functions
 // #############################################################
 
+// #########################################
 // DMA the new column data to the four rings
-void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank) {
+// #########################################
+void updateColumnLEDs(uint16_t columnIndex) {
+
+  uint8_t dotStarColumn[COLUMN_PAYLOAD];  // Use to hold transformed column data (rgb565->rgb888, gamma, brightness)
+  uint8_t *dst = dotStarColumn;
+
   // Need to reverse the column index since the sphere is rotating clockwise which means it's 
   // painting right to left from the framebuffer (i.e. highest index to lowest)
+
   int reversedColumn = TOTAL_COLUMNS - 1 - columnIndex;
 
   // Start DMA for current column.  For each column, stream out the four rings led data
   for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
     uint8_t baseCol = ringIndex * COLS_PER_RING;
     uint8_t *colPtr;
-    if(updateOrBlank == UPDATE_STRIP) {
-      colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * COLUMN_PAYLOAD);  // modulo 120 so we wrap when not starting at col-0 
-    } else {
-      colPtr = blankingBuffer;  // modulo 120 so we wrap when not starting at col-0 
-    }
+
+    colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * 3);  // modulo 120 so we wrap when not starting at col-0.  Multiply by 3-bytes to step across rgb fields
+
+    // Transform column data into dotStar format.  Convert to rgb888, apply brightness and gamma correction
+    buildColumn(dst,colPtr);
 
     // Turn on the selected colunm bus buffer
     digitalWrite(ringEnable[ringIndex], LOW); // enable
     delayMicroseconds(1); // settle
 
-    startColumnDma(colPtr);
+    startColumnDma(dst);
 
     // Wait for the DMA to finish this column before sending the next one.
     // This is a simple approach; can be optimized to queue multiple transfers.
     while (dmaBusy) {
       pollDmaComplete();
-     
-      // While waiting for the DMA to finish, do a partial update of the backbuffer.  There isn't enough time to fill the
-      // entire buffer at once, so we do a little bit during each column window.
-      //fillBackBufferPartially(backBufferFillIndex);
-      //if(backBufferFillIndex == TOTAL_COLUMNS - 4) {
-      //  backBufferFillIndex = 0;
-      //}
     }
       digitalWrite(ringEnable[ringIndex], HIGH); // disaable
   }
@@ -746,13 +712,10 @@ void updateColumnLEDs(uint16_t columnIndex, boolean updateOrBlank) {
 //#################################################################################
 void ensureBuffersAllocated() {
   if (frontBuffer == nullptr) {
-    frontBuffer = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_BYTES, MALLOC_CAP_8BIT);
+    frontBuffer = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_RGB_BYTES, MALLOC_CAP_8BIT);
   }
   if (backBuffer == nullptr) {
-    backBuffer  = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_BYTES, MALLOC_CAP_8BIT);
-  }
-  if (blankingBuffer == nullptr) {
-    blankingBuffer  = (uint8_t*)heap_caps_malloc(COLUMN_PAYLOAD, MALLOC_CAP_8BIT);
+    backBuffer  = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_RGB_BYTES, MALLOC_CAP_8BIT);
   }
   if (!frontBuffer || !backBuffer) {
     Serial.println("ERROR: buffer allocation failed. Reduce buffer sizes or check memory.");
@@ -779,55 +742,16 @@ void swapBuffersAtomic() {
   interrupts();
 }
 
+//###################################################################
+// Fill the backbuffer in preperation for the next displayed frame
+//###################################################################
+void fillBackbuffer() {
 
-//########################################################
-// Fill the backbuffer four columns at a time since we don't have time to fill it completely between updating led strips
-//########################################################
-/*
-void fillBackBufferPartially(uint8_t index){
-
-  uint32_t rgb48[LEDS_PER_COLUMN];
-  uint8_t red;
-  uint8_t green;
-  uint8_t blue;
-  const uint8_t* p = IMAGE.pixel_data;
-
-  for (unsigned col = index; col < col+4; col++) {
-    for (unsigned row = 0; row < IMAGE.width; row++) {
-      uint8_t red = p[0];
-      uint8_t green = p[1];
-      uint8_t blue = p[2];
-
-      rgb48[row] = (red << 11) | (green << 6) | (blue);
-
-      // Build the dotStar-formatted column into backBuffer
-      uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
-      buildColumn(dst, rgb48);
-
-      p += 3;
-    }
-
-    // Build the dotStar-formatted column into backBuffer
-    uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
-    buildColumn(dst, rgb48);
-  }
-}
-*/
-
-
-//########################################################
-void fillWholeBackbuffer() {
-//########################################################
-
-  uint32_t rgb48[LEDS_PER_COLUMN];
-
-  for (unsigned col = 0; col < IMAGE.width; col++) {
+  for (unsigned col = 0; col < imageTable[imageToDisplayIndex]->width; col++) {
 
     // Start at row 0, this column
-    const uint8_t* p = IMAGE.pixel_data + (col * 2);
-
-    for (unsigned row = 0; row < IMAGE.height; row++) {
-
+    const uint8_t* p = imageTable[imageToDisplayIndex]->pixel_data + (col * 2);
+    for (unsigned row = 0; row < imageTable[imageToDisplayIndex]->height; row++) {
       #if GIMP_RGB565_LITTLE_ENDIAN
         uint16_t rgb565 = (p[1] << 8) | p[0];
       #else
@@ -847,47 +771,22 @@ void fillWholeBackbuffer() {
       uint8_t g8 = (g6 << 2) | (g6 >> 4);
       uint8_t b8 = (b5 << 3) | (b5 >> 2);
 
-      // Pack as 0xRRGGBB for buildColumn()
-      rgb48[row] = (r8 << 16) | (g8 << 8) | b8;
+      // Now store the rgb (three bytes per row) data into the backbuffer.  In the rendering (by core-1), 
+      // we will add the start bytes, brightness, gamma, and stop bytes before DMA to the dotStars.
+      backBuffer[(row * TOTAL_COLUMNS * 3) + (col * 3)] = r8;
+      backBuffer[(row * TOTAL_COLUMNS * 3) + (col * 3 + 1)] = g8;
+      backBuffer[(row * TOTAL_COLUMNS * 3) + (col * 3 + 2)] = b8;
 
       // Advance to next row, same column
-      p += IMAGE.width * 2;
+      p += imageTable[imageToDisplayIndex]->width * 2;
     }
-
-    uint8_t *dst = backBuffer + (col * COLUMN_PAYLOAD);
-    buildColumn(dst, rgb48);
   }
 }
 
 //########################################################
-// Build a turned off column to use in blanking 
-//########################################################
-void fillBlankingColumn() {
-
-    // Build an array of 48 RGB values (packed 0xRRGGBB)
-    uint32_t rgb48[LEDS_PER_COLUMN];
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-
-    for (int row = 0; row < LEDS_PER_COLUMN; ++row) {
-      red =  0;
-      green = 0;
-      blue = 0;
-      rgb48[row] = (red << 16) | (green << 8) | (blue);
-    }
-
-    // Build the dotStar-formatted column into a blanking buffer
-    uint8_t *dst = blankingBuffer;
-    buildColumn(dst, rgb48);
-
-}
-
-
-//########################################################
 // Build one dotStar dotStar column (start+48*4+end) into dst
 //########################################################
-void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
+void buildColumn(uint8_t *dst, uint8_t *colPtr) {
   int idx = 0;
 
   // Start frame (32 bits of zero)
@@ -896,12 +795,13 @@ void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
   dst[idx++] = 0x00;
   dst[idx++] = 0x00;
 
+  // Build dotStar data for each LED in the column
   for (int i = 0; i < LEDS_PER_COLUMN; ++i) {
 
-    // Extract full 8-bit channels
-    uint8_t r = (rgb48[i] >> 16) & 0xFF;
-    uint8_t g = (rgb48[i] >> 8)  & 0xFF;
-    uint8_t b =  rgb48[i]        & 0xFF;
+    // Extract the rgb fields for this LED row
+    uint8_t r = colPtr[i*TOTAL_COLUMNS*3];
+    uint8_t g = colPtr[i*TOTAL_COLUMNS*3+1];
+    uint8_t b = colPtr[i*TOTAL_COLUMNS*3+2];
 
     // Apply gamma correction
     r = gamma24[r];
@@ -913,9 +813,8 @@ void buildColumn(uint8_t *dst, uint32_t rgb48[]) {
     g = (g * BRIGHTNESS_G) >> 8;
     b = (b * BRIGHTNESS_B) >> 8;
 
-    // Global brightness: 0b111xxxxx (5-bit current control)
-    //dst[idx++] = 0xE0 | 0x0F;   // ~50% brightness (good for POV)
-    dst[idx++] = 0xE0 | 0x07;   // ~50% brightness (good for POV)
+    // Start with brightness bits
+    dst[idx++] = 0xE0 | fiveBitBright;   
 
     #if DOTSTAR_ORDER_GRB
         dst[idx++] = g;
