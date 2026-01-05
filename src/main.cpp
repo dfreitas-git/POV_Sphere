@@ -19,13 +19,15 @@
 #include <Adafruit_AS5600.h>
 #include <gimp_compat.h>
 #include <images.h>
-#include <testData.h>
 #include <gamma.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <ClickEncoder.h>
 #include <Ticker.h>
+#include <soc/gpio_reg.h>
+#include <soc/gpio_struct.h>  // if we ever use GPIO.out_w1ts
+
 
 
 /* ===================== Menu Types ===================== */
@@ -40,7 +42,8 @@ enum MenuItemType {
 // Prototypes
 struct MenuItem;
 typedef void (*ActionCallback)(MenuItem*);
-void onOff(MenuItem*) ;
+void motorOnOff(MenuItem*) ;
+void scrollOnOff(MenuItem*) ;
 void encoderService() ;
 void buildMenu() ;
 void drawMenu() ;
@@ -61,6 +64,17 @@ void freeBuffers();
 void uiTask(void* parameter) ;
 float updatePID(float rpmMeasured, float targetRPM);
 
+// For generating sync pulses to measure timing using a scope
+#define SYNC_PIN 26
+#define SYNC_MASK (1UL << SYNC_PIN)
+
+inline void IRAM_ATTR sync_high() {
+  REG_WRITE(GPIO_OUT_W1TS_REG, SYNC_MASK);
+}
+
+inline void IRAM_ATTR sync_low() {
+  REG_WRITE(GPIO_OUT_W1TC_REG, SYNC_MASK);
+}
 
 // ###########################################################
 //   DotStar, LED, DMA, critical timing code running on core-1
@@ -101,9 +115,7 @@ const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED)
 const int TOTAL_COLUMNS_BYTES = TOTAL_COLUMNS * COLUMN_PAYLOAD;
 
 // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
-//uint16_t rawAngleOffset = 3072;  
 uint16_t rawAngleOffset = 0; 
-boolean scrollDisplay = 1;
 
 // State Variables for keeping track of column count
 constexpr uint32_t AS5600_COUNTS = 4096;
@@ -151,7 +163,7 @@ float lastDerivative = 0.0f; // filtered derivative
 uint32_t lastPidMs = 0;  // Last time PID was updated
 
 // Output limits (map to your PWM range)
-const float PWM_MIN = 150.0f;
+const float PWM_MIN = 125.0f;
 const float PWM_MAX = 255.0f;
 
 const float DERIV_FILTER_TAU = 0.05f; // derivative low-pass (seconds). 0.01..0.2 typical
@@ -162,7 +174,7 @@ spi_device_handle_t spi = nullptr;
 // Double buffers allocated on heap (to make swapping trivial)
 uint8_t *frontBuffer = nullptr;   // Used by core-1.  Displayed buffer (contains TOTAL_COLUMNS columns sequentially)
 uint8_t *backBuffer  = nullptr;   // Written by core-0 (next frame)
-volatile boolean backBufferFilled = false;  // Set to true when a valid image has been loaded into it.
+volatile bool backBufferFilled = false;  // Set to true when a valid image has been loaded into it.
 
 volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 
@@ -239,32 +251,34 @@ void encoderService() {
 /* ===================== Global Variables ===================== */
 int brightness = 3;  // Sphere LED brightness
 uint8_t fiveBitBright; // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
-boolean onOffFlag = 1;   // Turn the motor on or off
+volatile bool motorOnOffFlag = 1;   // Turn the motor on/off
+volatile bool scrollOnOffFlag = 1;   // Turn the scrolling of the image on/off
 uint8_t imageToDisplayIndex = 0;
-uint8_t onOffIndex = 1;  // Start with the motor on
 
 // Images to display on the Sphere
 const int NUMBER_OF_DISPLAY_FILES = IMG_COUNT;
 const char* imageToDisplay[IMG_COUNT];
 
-// Turn the motor on or off
-const int ON_OFF_STRINGS = 2;
-const char* onOffStrings[] = {
-  "Off",
-  "On",
-};
 
 /* ===================== Callbacks ===================== */
 
-void onOff(MenuItem*) {
-  if(onOffFlag == 1) {
-    onOffFlag = 0;
-    onOffIndex=0;
-     Serial.println("Turn Off");
+void motorOnOff(MenuItem*) {
+  if(motorOnOffFlag == 1) {
+    motorOnOffFlag = 0;
+     Serial.println("Motor Off");
   } else {
-    onOffFlag = 1;
-    onOffIndex=1;
-     Serial.println("Turn On");
+    motorOnOffFlag = 1;
+     Serial.println("Motor On");
+  }
+}
+
+void scrollOnOff(MenuItem*) {
+  if(scrollOnOffFlag == 1) {
+    scrollOnOffFlag = 0;
+     Serial.println("Rotate Off");
+  } else {
+    scrollOnOffFlag = 1;
+     Serial.println("Rotate On");
   }
 }
 
@@ -274,7 +288,8 @@ MenuItem menuSettings;
 MenuItem menuBrightness;
 MenuItem menuDisplay;
 MenuItem menuRPM;
-MenuItem menuOnOff;
+MenuItem menuMotorOnOff;
+MenuItem menuScrollOnOff;
 
 /* ===================== Menu Construction ===================== */
 MenuItem* settingsChildren[] = {
@@ -285,7 +300,8 @@ MenuItem* settingsChildren[] = {
 MenuItem* mainChildren[] = {
   &menuDisplay,
   &menuSettings,
-  &menuOnOff
+  &menuMotorOnOff,
+  &menuScrollOnOff
 };
 
 void buildMenu() {
@@ -295,7 +311,7 @@ void buildMenu() {
     MENU_SUBMENU,
     nullptr,
     mainChildren,
-    3,
+    4,
     nullptr,
     nullptr, 0, 0,
     nullptr, 0, 0,
@@ -340,15 +356,26 @@ void buildMenu() {
     imageToDisplay, NUMBER_OF_DISPLAY_FILES, &imageToDisplayIndex
   };
 
-  menuOnOff = {
-    "On/Off",
-    MENU_LIST,
+  menuMotorOnOff = {
+    "Motor On/Off",
+    MENU_ACTION,
     &menuSettings,
     nullptr, 0,
-    onOff,
+    motorOnOff,
     nullptr, 0, 0,
     nullptr, 0, 0,
-    onOffStrings, ON_OFF_STRINGS, &onOffIndex
+    nullptr,0,nullptr
+  };
+
+  menuScrollOnOff = {
+    "Scroll On/Off",
+    MENU_ACTION,
+    &menuSettings,
+    nullptr, 0,
+    scrollOnOff,
+    nullptr, 0, 0,
+    nullptr, 0, 0,
+    nullptr,0,nullptr
   };
 
   menuRPM = {
@@ -493,6 +520,9 @@ void setup() {
   pinMode(RING2_ENB, OUTPUT);
   pinMode(RING3_ENB, OUTPUT);
 
+  // Sync pin for scope measurements
+  pinMode(SYNC_PIN, OUTPUT);
+
   //Set up OLED on 2nd I2C bus
   Wire1.begin(SDA_OLED, SCL_OLED, 400000); // SDA, SCL, clock
 
@@ -582,6 +612,11 @@ void uiTask(void* parameter) {
       backBufferFilled = true;
     }
 
+    // Set the image to a given position if we are not scrolling it.
+    if(scrollOnOffFlag == 0) {
+       rawAngleOffset = 3584;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
+    }
+
     //vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
@@ -590,16 +625,29 @@ void uiTask(void* parameter) {
 //#########################################################################
 void loop() {
 
+  //dlf sync_high();  // Debug edge to measure timing on a scope
+
   // Poll DMA completion regularly (non-blocking).  Unset dmaBusy once DMA is complete
-  pollDmaComplete();
+  //pollDmaComplete();
+
+  // See what angle the sphere is at.  
+  uint16_t curAngle = as5600.getRawAngle();
+  uint16_t curRawAngle = (curAngle + rawAngleOffset) % AS5600_COUNTS;  // modulo to wrap result in case of overflow
+
+  // Rotates the image by shifting the rawAngle each cycle through the loop
+  if(scrollOnOffFlag) {
+    rawAngleOffset--;
+    if(rawAngleOffset < 0) {
+      rawAngleOffset = AS5600_COUNTS;
+    }
+  }
 
   // Check the motor speed
   uint32_t now = micros();
 
   // Periodically measure the motor rpm for the PID control to use
   if (now - lastTime >= samplePeriod_us) {
-    uint16_t curr = as5600.getRawAngle();
-    int16_t delta = curr - lastAngle;
+    int16_t delta = curAngle - lastAngle;
 
     // Takes care of case where we cross the 360 degree back to 0 degree boundary
     if (delta > 2048)  delta -= AS5600_COUNTS;
@@ -609,22 +657,20 @@ void loop() {
     float dt = (now - lastTime) * 1e-6;
     motorRPM = (delta * 60.0) / ((AS5600_COUNTS * 1.0) * dt);
 
-    lastAngle = curr;
+    lastAngle = curAngle;
     lastTime = now;
   }
 
   //  PID speed regulation
   if (millis() - lastPidMs > 100) {
     float pwm = updatePID(motorRPM, targetRPM);
-    ledcWrite(0, (int)pwm);
-    //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
-  }
-  // Prepare for displaying new LED image.  See what angle the sphere is at.  rawAngleOffset lets us add a shift to the image
-  uint16_t curRawAngle = (as5600.getRawAngle() + rawAngleOffset) % AS5600_COUNTS;  // modulo to wrap result in case of overflow
-  if(scrollDisplay) {
-    rawAngleOffset--;
-    if(rawAngleOffset < 0) {
-      rawAngleOffset = AS5600_COUNTS;
+
+    // See if the user wants the motor off
+    if(motorOnOffFlag == 0) {
+      ledcWrite(0, 0);
+    } else {
+      ledcWrite(0, (int)pwm);
+      //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
     }
   }
 
@@ -632,18 +678,20 @@ void loop() {
   if (triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
   if (triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
 
+  //dlf sync_low();  // Debug edge to measure timing on a scope
+
+
   // Once the current angle has reached the next column, trigger a DMA transfer if the backBuffer is ready with a new frame
   if (triggerPoint >= 0) {
 
-    // Each time the sphere gets to the 0th column, swap in a new backBuffer if it is filled with the next image
-    if(curRawAngle > 0 && curRawAngle < 34) {    // Each 3-degree (360/120) column is 34 raw counts wide
-      if(backBufferFilled) {
-        // Point the frontbuffer to the new data
-        swapBuffersAtomic();
+    // As soon as core-0 filles the backBuffer, swap it into the frontBuffer and start updating the Sphere
+    if(backBufferFilled) {
 
-       // Reset flag so core-0 can start filling the back buffer again
-       backBufferFilled = false;
-      }
+      // Point the frontbuffer to the new data
+      swapBuffersAtomic();
+
+     // Reset flag so core-0 can start filling the back buffer again
+     backBufferFilled = false;
     }
 
     // Check to see how many columns the shaft advanced.  Should usually be 1, but if there was some CPU delay the shaft may have advanced further
@@ -702,10 +750,9 @@ void updateColumnLEDs(uint16_t columnIndex) {
     while (dmaBusy) {
       pollDmaComplete();
     }
-      digitalWrite(ringEnable[ringIndex], HIGH); // disaable
+    digitalWrite(ringEnable[ringIndex], HIGH); // disaable
   }
 }
-
 
 //#################################################################################
 // Allocate contiguous memory for the entire frame (TOTAL_COLUMNS * COLUMN_PAYLOAD)
@@ -994,9 +1041,6 @@ float updatePID(float rpmMeasured, float targetRPM) {
 void setupMotor() {
     ledcSetup(0, 20000, 8);   // 20 kHz PWM, 8-bit resolution
     ledcAttachPin(MOTOR_PWM_PIN, 0);
-
-    // Start the motor spinning
-    //ledcWrite(0, 128);
     ledcWrite(0, 0);
 }
 
