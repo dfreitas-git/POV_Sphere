@@ -28,8 +28,6 @@
 #include <soc/gpio_reg.h>
 #include <soc/gpio_struct.h>  // if we ever use GPIO.out_w1ts
 
-
-
 /* ===================== Menu Types ===================== */
 enum MenuItemType {
   MENU_SUBMENU,
@@ -63,6 +61,7 @@ void ensureBuffersAllocated();
 void freeBuffers();
 void uiTask(void* parameter) ;
 float updatePID(float rpmMeasured, float targetRPM);
+void computeCurrentAngle();
 
 // For generating sync pulses to measure timing using a scope
 #define SYNC_PIN 26
@@ -122,6 +121,30 @@ constexpr uint32_t AS5600_COUNTS = 4096;
 constexpr uint32_t COLUMNS   = 120;
 uint32_t angleUnwrapped = 0;
 
+// Core-0 will do the actual angle measurements, Core-1 will sync to them
+volatile uint32_t measuredAngle;   // AS5600 raw
+uint32_t lastMeasuredTime;    // micros() timestamp
+#define MAX_TRIM 2   // The most we allow core-0 to adjust the angle being computed by core-1
+
+// Core-1 angle values calculated and pll-locked to core-0 actual angle measurements
+#define OMEGA_SHIFT 16
+#define OMEGA_TRIM_PERIOD 30000000  // The amount of time we'd want to apply frequency trim to our core-1 VCO
+#define PHASE_DEADBAND 10           // Any angle error less than this and we don't apply any more correction to the VCO
+#define KP_SHIFT   12
+#define KI_SHIFT   16
+#define KP 16 
+#define KI 4
+
+int64_t angle_accum;            // high precision
+int32_t angle_q;                // current predicted angle (Q0, 0–4095)
+volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
+int32_t omega;                  // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
+uint32_t lastAngleTime;         // Used by core-1 to calculate dt between angle calculations
+uint32_t phase_error;           // Current error between measured angle from core-0 and computed angle on core-1
+volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
+
+
+// Core-1 column position vars
 uint32_t nextColumnAngle = 0;
 uint16_t columnIndex = 0;
 
@@ -135,18 +158,12 @@ constexpr uint32_t COLUMN_REM  = AS5600_COUNTS % COLUMNS;      // 16
 const int MOTOR_PWM_PIN = 25; // To control the motor speed
 
 Adafruit_AS5600 as5600;  // magnetic angle sensor
-const uint32_t samplePeriod_us = 10000; // 10 ms
+const uint32_t samplePeriod_us = 20000; // time (us) that we can slow down the angle reading period in core-0
 uint16_t lastAngle = 0;
-uint32_t lastTime  = 0;
 float motorRPM = 0.0f;
 
 const uint32_t MIN_DT_US = 10000; // ignore pulses closer than 10ms => noise filter
 const uint32_t RPM_TIMEOUT_MS = 200; // if no pulses for 200ms, zero RPM
-
-// --- shared state (ISR/main)
-volatile uint32_t lastPulseTime = 0; // micros() at last valid pulse
-volatile uint32_t pulseDt = 0;       // dt in microseconds between last two valid pulses
-volatile uint32_t lastPulseMillis = 0; // millis() when last valid pulse arrived
 
 // ====== PID control ======
 float targetRPM = 320.0;
@@ -162,7 +179,7 @@ float lastError = 0.0f;
 float lastDerivative = 0.0f; // filtered derivative
 uint32_t lastPidMs = 0;  // Last time PID was updated
 
-// Output limits (map to your PWM range)
+// Output limits (map to motor PWM range)
 const float PWM_MIN = 125.0f;
 const float PWM_MAX = 255.0f;
 
@@ -252,7 +269,7 @@ void encoderService() {
 int brightness = 3;  // Sphere LED brightness
 uint8_t fiveBitBright; // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
 volatile bool motorOnOffFlag = 1;   // Turn the motor on/off
-volatile bool scrollOnOffFlag = 1;   // Turn the scrolling of the image on/off
+volatile bool scrollOnOffFlag = 0;   // Turn the scrolling of the image on/off
 uint8_t imageToDisplayIndex = 0;
 
 // Images to display on the Sphere
@@ -569,23 +586,89 @@ void setup() {
   // Small stabilization time
   delay(10);
 
+  // Get the angle the motor shaft is starting at and initialize the core-1 angle-accumulator/calculator
+  measuredAngle = as5600.getRawAngle(); 
+  angle_q = measuredAngle; 
+
+  // For the core-0 angle measurement update
+  lastMeasuredTime = millis();  //Used by core-0
+  lastAngleTime = micros();  // Used by core-1
+
   // Initialize the column number based on where the shaft is sitting
-  uint16_t curRawAngle = as5600.getRawAngle(); 
-
   // Do multiply before divide to maintain precision
-  columnIndex = (uint32_t(curRawAngle) * COLUMNS) / AS5600_COUNTS;
+  columnIndex = (uint32_t(measuredAngle) * COLUMNS) / AS5600_COUNTS;
 
+  // Need to set where the next column will start
   constexpr uint32_t base_step = AS5600_COUNTS / COLUMNS;
   nextColumnAngle = (columnIndex + 1) * base_step;
+
   Serial.println("Setup complete.");
 }
 
 //###################################################################
-// FOR loop for core-0
-// Task for core-0 (where we will run all the UI and SDCard reading). 
+// core-0 loop (where we will run all the UI and SDCard reading)
+// Task for core-0 
 //####################################################################
 void uiTask(void* parameter) {
   for (;;) {
+
+    // Periodically measure the shaft angle for motor rpm/PID control and core-1 PLL locking
+    uint32_t now = micros();
+    if (now - lastMeasuredTime >= samplePeriod_us) {
+
+      // Go do a shaft angle measurement so core-1 angle-calculating "pll" can lock to it. 
+      measuredAngle = as5600.getRawAngle();
+
+      // When we get a new actual shaft-angle measurement, use it to adjust our computed angle to eliminate any drift
+      phase_error = measuredAngle - angle_q;
+
+      // Takes care of case where we cross the 360 degree back to 0 degree boundary
+      if (phase_error > 2048)  phase_error -= AS5600_COUNTS;
+      if (phase_error < -2048) phase_error += AS5600_COUNTS;
+
+      // Angle error less than this and we won't apply any more correction to the VCO
+      if (abs(long(phase_error)) < PHASE_DEADBAND){
+        phase_error = 0;
+      }
+
+      // Small proportional-only correction in frequency to keep angle in sync 
+      omega_trim = (phase_error << OMEGA_SHIFT) / OMEGA_TRIM_PERIOD;
+
+      // Limit the trim amount
+      omega_trim = constrain(omega_trim, -MAX_TRIM, MAX_TRIM);
+
+      // Check the motor speed
+      int16_t delta = measuredAngle - lastAngle;
+  
+      // Takes care of case where we cross the 360 degree back to 0 degree boundary
+      if (delta > 2048)  delta -= AS5600_COUNTS;
+      if (delta < -2048) delta += AS5600_COUNTS;
+  
+      // Compute rpm by measuring the delta-angle between polling
+      float dt_us = (now - lastMeasuredTime) * 1e-6;
+      motorRPM = (delta * 60.0) / ((AS5600_COUNTS * 1.0) * dt_us);
+
+      // Compute the shaft speed that will be used by core-1 to calculate the shaft angle
+      // omega_ff is in angle-counts/us  (scaled up by OMEGA_SHIFT for integer math.)
+      omega_ff = int32_t(((motorRPM * pow(2,OMEGA_SHIFT)/ 60) * AS5600_COUNTS) / 1000000);
+      lastAngle = measuredAngle;
+      lastMeasuredTime = now;
+    }
+  
+    //  PID speed regulation
+    if (millis() - lastPidMs > 100) {
+      float pwm = updatePID(motorRPM, targetRPM);
+  
+      // See if the user wants the motor off
+      if(motorOnOffFlag == 0) {
+        ledcWrite(0, 0);
+      } else {
+        ledcWrite(0, (int)pwm);
+        //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
+      }
+    }
+
+    // Now go check the encoder/switch for user input
     int16_t delta = encoder.getValue();
     if (delta != 0) {
       handleRotation(delta);
@@ -614,12 +697,12 @@ void uiTask(void* parameter) {
 
     // Set the image to a given position if we are not scrolling it.
     if(scrollOnOffFlag == 0) {
-       rawAngleOffset = 3584;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
+       //rawAngleOffset = 3584;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
+       rawAngleOffset = 0;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
     }
-
-    //vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
+
 //#########################################################################
 // Main Loop for core-1. Core-1 will run the critical POV data DMA loop.
 //#########################################################################
@@ -627,12 +710,13 @@ void loop() {
 
   //dlf sync_high();  // Debug edge to measure timing on a scope
 
-  // Poll DMA completion regularly (non-blocking).  Unset dmaBusy once DMA is complete
-  //pollDmaComplete();
+  // Make a local copy of the shaft speed that core-0 measured.
+  omega = omega_ff;
 
-  // See what angle the sphere is at.  
-  uint16_t curAngle = as5600.getRawAngle();
-  uint16_t curRawAngle = (curAngle + rawAngleOffset) % AS5600_COUNTS;  // modulo to wrap result in case of overflow
+  // Now compute the angle_q for the current time (i.e. what the Sphere angle currently is)
+  computeCurrentAngle();   
+
+  uint16_t adjustedAngle = (angle_q + rawAngleOffset) % AS5600_COUNTS;  // modulo to wrap result in case of overflow
 
   // Rotates the image by shifting the rawAngle each cycle through the loop
   if(scrollOnOffFlag) {
@@ -641,48 +725,14 @@ void loop() {
       rawAngleOffset = AS5600_COUNTS;
     }
   }
-
-  // Check the motor speed
-  uint32_t now = micros();
-
-  // Periodically measure the motor rpm for the PID control to use
-  if (now - lastTime >= samplePeriod_us) {
-    int16_t delta = curAngle - lastAngle;
-
-    // Takes care of case where we cross the 360 degree back to 0 degree boundary
-    if (delta > 2048)  delta -= AS5600_COUNTS;
-    if (delta < -2048) delta += AS5600_COUNTS;
-
-    // Compute rpm by measuring the delta-angle between polling
-    float dt = (now - lastTime) * 1e-6;
-    motorRPM = (delta * 60.0) / ((AS5600_COUNTS * 1.0) * dt);
-
-    lastAngle = curAngle;
-    lastTime = now;
-  }
-
-  //  PID speed regulation
-  if (millis() - lastPidMs > 100) {
-    float pwm = updatePID(motorRPM, targetRPM);
-
-    // See if the user wants the motor off
-    if(motorOnOffFlag == 0) {
-      ledcWrite(0, 0);
-    } else {
-      ledcWrite(0, (int)pwm);
-      //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
-    }
-  }
-
-  int32_t triggerPoint = curRawAngle - nextColumnAngle;
-  if (triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
-  if (triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
+  int32_t triggerPoint = adjustedAngle - nextColumnAngle;
+  if(triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
+  if(triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
 
   //dlf sync_low();  // Debug edge to measure timing on a scope
 
-
   // Once the current angle has reached the next column, trigger a DMA transfer if the backBuffer is ready with a new frame
-  if (triggerPoint >= 0) {
+  if(triggerPoint >= 0) {
 
     // As soon as core-0 filles the backBuffer, swap it into the frontBuffer and start updating the Sphere
     if(backBufferFilled) {
@@ -706,7 +756,7 @@ void loop() {
     }
   
     // Go update the strips. 
-    if (!dmaBusy) {
+    if(!dmaBusy) {
       updateColumnLEDs(columnIndex);
     }
   }
@@ -965,8 +1015,6 @@ void pollDmaComplete() {
   // if ret == ESP_ERR_TIMEOUT -> not finished yet; do nothing
 }
 
-
-
 //########################################################
 // Update the PWM value sent to the motor via a PID loop
 // rpmMeasured = measured RPM (float),  targetRPM = desired RPM (global)
@@ -1044,3 +1092,19 @@ void setupMotor() {
     ledcWrite(0, 0);
 }
 
+//########################################################
+// Core-1 computes the angle the Sphere every loop cycle.   
+// We do actual measurements in core-0 at a more relaxed 
+// rate and just sync-up core-1 periodically.  That allows 
+// us to remove the very slow magnetic  angle sensor 
+// (AS5600) from the fast LED/DMA/render loop and replace 
+// it with fast calculations so the max rpm can be increased.
+//########################################################
+void computeCurrentAngle() {
+    uint32_t now = micros();
+    uint32_t dt = now - lastAngleTime;
+    lastAngleTime = now;
+
+    angle_accum += (omega_ff + omega_trim) * dt;
+    angle_q = (angle_accum >> OMEGA_SHIFT) & 0x0FFF;
+}
