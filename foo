@@ -14,15 +14,15 @@
 // dlf 12/28/2025
 
 #include <Arduino.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 #include <driver/spi_master.h>
 #include <driver/gpio.h>
 #include <Adafruit_AS5600.h>
 #include <gimp_compat.h>
 #include <images.h>
 #include <gamma.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <ClickEncoder.h>
 #include <Ticker.h>
 #include <soc/gpio_reg.h>
@@ -62,9 +62,6 @@ void freeBuffers();
 void uiTask(void* parameter) ;
 float updatePID(float rpmMeasured, float targetRPM);
 void computeCurrentAngle();
-
-// debug print limiter
-uint8_t printCount = 0;
 
 // For generating sync pulses to measure timing using a scope
 #define SYNC_PIN 26
@@ -106,6 +103,10 @@ const int RINGS = 4;            // number of rings
 const int COLS_PER_RING = TOTAL_COLUMNS/RINGS;            // number of rings
 const int ringEnable[] = {RING0_ENB, RING1_ENB, RING2_ENB, RING3_ENB};
 
+// State Variables for keeping track of column count
+constexpr uint32_t AS5600_COUNTS = 4096;
+uint32_t angleUnwrapped = 0;
+
 // dotStar specifics
 const int BYTES_PER_LED = 4;  // dotStart uses 4 bytes per LED (global, B, G, R in common libs)
 
@@ -118,14 +119,6 @@ const int TOTAL_COLUMNS_RGB_BYTES = TOTAL_COLUMNS * LEDS_PER_COLUMN * 3;  // one
 // We'll build each column as: [4-byte start frame][48 * 4 bytes LED frames][4-byte end frame]
 const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED) + END_FRAME_BYTES;
 const int TOTAL_COLUMNS_BYTES = TOTAL_COLUMNS * COLUMN_PAYLOAD;
-
-// Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
-uint16_t rawAngleOffset = 0; 
-
-// State Variables for keeping track of column count
-constexpr uint32_t AS5600_COUNTS = 4096;
-constexpr uint32_t COLUMNS   = 120;
-uint32_t angleUnwrapped = 0;
 
 // Core-0 will do the actual angle measurements, Core-1 will sync to them
 volatile uint32_t measuredAngle;   // AS5600 raw
@@ -155,8 +148,8 @@ uint32_t nextColumnAngle = 0;
 uint16_t columnIndex = 0;
 
 // Use integer math; keep remainder for precision
-constexpr uint32_t COLUMN_STEP = AS5600_COUNTS / COLUMNS;      // 34
-constexpr uint32_t COLUMN_REM  = AS5600_COUNTS % COLUMNS;      // 16
+constexpr uint32_t COLUMN_STEP = AS5600_COUNTS / TOTAL_COLUMNS;      // 34
+constexpr uint32_t COLUMN_REM  = AS5600_COUNTS % TOTAL_COLUMNS;      // 16
 
 //##########################
 // PID motor speed control
@@ -164,15 +157,16 @@ constexpr uint32_t COLUMN_REM  = AS5600_COUNTS % COLUMNS;      // 16
 const int MOTOR_PWM_PIN = 25; // To control the motor speed
 
 Adafruit_AS5600 as5600;  // magnetic angle sensor
-const uint32_t samplePeriod_us = 20000; // minimum time (us) between sampling the angle measurement in core-0
+const uint32_t samplePeriod_us = 20000; // time (us) that we can slow down the angle reading period in core-0
 uint16_t lastAngle = 0;
 float motorRPM = 0.0f;
+int skippedUpdates = 0;  // If the angle sensor acts up we will skip that angle update
 
 const uint32_t MIN_DT_US = 10000; // ignore pulses closer than 10ms => noise filter
 const uint32_t RPM_TIMEOUT_MS = 200; // if no pulses for 200ms, zero RPM
 
 // ====== PID control ======
-float targetRPM = 360.0;
+float targetRPM = 320.0;
 
 float Kp = 0.2f;
 float Ki = 0.8f;
@@ -188,6 +182,8 @@ uint32_t lastPidMs = 0;  // Last time PID was updated
 // Output limits (map to motor PWM range)
 const float PWM_MIN = 125.0f;
 const float PWM_MAX = 255.0f;
+float lastPWM = PWM_MIN;  // keep track of last pwm value so we can be sure it doesn't change too quickly
+const float PWM_DELTA_MAX = 5.0;
 
 const float DERIV_FILTER_TAU = 0.05f; // derivative low-pass (seconds). 0.01..0.2 typical
 
@@ -201,6 +197,8 @@ volatile bool backBufferFilled = false;  // Set to true when a valid image has b
 
 volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 
+
+
 // ###########################################################
 //   UI core-0 OLED/rotary-encoder/switch definitions
 // ###########################################################
@@ -211,12 +209,14 @@ volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 #define SCL_OLED 33
 #define OLED_RESET    -1     // no reset pin
 #define OLED_ADDR     0x3C
+
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET);
 
 /* ===================== Encoder ===================== */
 #define ENC_A 35
 #define ENC_B 34
 #define ENC_BTN 27
+
 ClickEncoder encoder(ENC_A, ENC_B, ENC_BTN, 4);
 Ticker encoderTicker;
 
@@ -583,6 +583,7 @@ void setup() {
   // Get the angle the motor shaft is starting at and initialize the core-1 angle-accumulator/calculator
   measuredAngle = as5600.getRawAngle(); 
   angle_q = measuredAngle; 
+  Serial.printf("Setup- measuredAngle: %d\n",measuredAngle);
 
   // For the core-0 angle measurement update
   lastMeasuredTime = millis();  //Used by core-0
@@ -590,15 +591,13 @@ void setup() {
 
   // Initialize the column number based on where the shaft is sitting
   // Do multiply before divide to maintain precision
-  columnIndex = (uint32_t(measuredAngle) * COLUMNS) / AS5600_COUNTS;
+  columnIndex = (uint32_t(measuredAngle) * TOTAL_COLUMNS) / AS5600_COUNTS;
 
   // Need to set where the next column will start
-  constexpr uint32_t base_step = AS5600_COUNTS / COLUMNS;
+  constexpr uint32_t base_step = AS5600_COUNTS / TOTAL_COLUMNS;
   nextColumnAngle = (columnIndex + 1) * base_step;
 
-  Serial.println("Setup complete.");
-
-  // Create tase to run on core-0 for the UI code
+  // Now that everything is initialized, create task to run on core-0 for the UI code
   xTaskCreatePinnedToCore(
     uiTask,
     "UI Task",
@@ -608,6 +607,7 @@ void setup() {
     &uiTaskHandle,
     0   //  Core 0
   );
+  Serial.println("Setup complete.");
 
   // We are done with setup.  Release the semaphore
   xSemaphoreGive(initDone);   // LAST LINE
@@ -624,21 +624,38 @@ void uiTask(void* parameter) {
   xSemaphoreTake(initDone, portMAX_DELAY);
 
   for (;;) {
-
     // Periodically measure the shaft angle for motor rpm/PID control and core-1 PLL locking
+    uint16_t delta;
     uint32_t now = micros();
     if (now - lastMeasuredTime >= samplePeriod_us) {
 
       // Go do a shaft angle measurement so core-1 angle-calculating "pll" can lock to it. 
       measuredAngle = as5600.getRawAngle();
+      lastMeasuredTime = micros();
 
-      uint16_t deltaAngle = measuredAngle - lastAngle;
+      // Reject any bad angle measurements (like when i2c read fails)
+  
+      // How far has the shaft rotated
+      delta = measuredAngle - lastAngle;
   
       // Takes care of case where we cross the 360 degree back to 0 degree boundary
-      if (deltaAngle > 2048)  deltaAngle -= AS5600_COUNTS;
-      if (deltaAngle < -2048) deltaAngle += AS5600_COUNTS;
+      if (delta > 2048)  delta -= AS5600_COUNTS;
+      if (delta < -2048) delta += AS5600_COUNTS;
 
-      // When we get a new actual shaft-angle measurement, use it to adjust our computed angle to eliminate any drift
+  
+      // Depending on shaft rpm, the angle should be only about 30-50 degrees further than the last time we 
+      // checked.  At 400rpm for a 20ms samplePeriod that would be about 575 counts.  Let's call it 600.
+      // If our measured angle is greater than this, it's bogus.  Just use a calculated angle.
+      /*
+      if(delta > 600) {
+        uint16_t estimatedAngleCount = uint64_t(motorRPM * AS5600_COUNTS * samplePeriod_us)/60000000;  
+        measuredAngle += estimatedAngleCount;
+      }
+      Serial.printf("delta: %d   measuredAngle: %d\n",delta,measuredAngle);
+      */
+      lastAngle = measuredAngle;
+
+      // When we get a new shaft-angle measurement, use it to adjust our computed angle to eliminate any drift
       phase_error = measuredAngle - angle_q;
 
       // Takes care of case where we cross the 360 degree back to 0 degree boundary
@@ -655,13 +672,6 @@ void uiTask(void* parameter) {
 
       // Limit the trim amount
       omega_trim = constrain(omega_trim, -MAX_TRIM, MAX_TRIM);
-
-      // Check the motor speed
-      int16_t delta = measuredAngle - lastAngle;
-  
-      // Takes care of case where we cross the 360 degree back to 0 degree boundary
-      if (delta > 2048)  delta -= AS5600_COUNTS;
-      if (delta < -2048) delta += AS5600_COUNTS;
   
       // Compute rpm by measuring the delta-angle between polling
       float dt_us = (now - lastMeasuredTime) * 1e-6;
@@ -670,9 +680,6 @@ void uiTask(void* parameter) {
       // Compute the shaft speed that will be used by core-1 to calculate the shaft angle
       // omega_ff is in angle-counts/us  (scaled up by OMEGA_SHIFT for integer math.)
       omega_ff = int32_t(((motorRPM * pow(2,OMEGA_SHIFT)/ 60) * AS5600_COUNTS) / 1000000);
-
-      lastAngle = measuredAngle;
-      lastMeasuredTime = now;
     }
   
     //  PID speed regulation
@@ -688,9 +695,8 @@ void uiTask(void* parameter) {
       }
     }
 
-
     // Now go check the encoder/switch for user input
-    int16_t delta = encoder.getValue();
+    delta = encoder.getValue();
     if (delta != 0) {
       handleRotation(delta);
     }
@@ -715,12 +721,6 @@ void uiTask(void* parameter) {
       fillBackbuffer();
       backBufferFilled = true;
     }
-
-    // Set the image to a given position if we are not scrolling it.
-    if(scrollOnOffFlag == 0) {
-       //rawAngleOffset = 3584;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
-       rawAngleOffset = 0;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
-    }
   }
 }
 
@@ -737,16 +737,10 @@ void loop() {
   // Now compute the angle_q for the current time (i.e. what the Sphere angle currently is)
   computeCurrentAngle();   
 
-  uint16_t adjustedAngle = (angle_q + rawAngleOffset) % AS5600_COUNTS;  // modulo to wrap result in case of overflow
-
-  // Rotates the image by shifting the rawAngle each cycle through the loop
-  if(scrollOnOffFlag) {
-    rawAngleOffset--;
-    if(rawAngleOffset < 0) {
-      rawAngleOffset = AS5600_COUNTS;
-    }
-  }
+  uint16_t adjustedAngle = (angle_q) % AS5600_COUNTS;  // modulo to wrap result in case of overflow
   int32_t triggerPoint = adjustedAngle - nextColumnAngle;
+
+  // Wrap when crossing the 0-degree boundary
   if(triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
   if(triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
 
@@ -766,10 +760,10 @@ void loop() {
     }
 
     // Check to see how many columns the shaft advanced.  Should usually be 1, but if there was some CPU delay the shaft may have advanced further
-    uint32_t columnsAdvanced = (triggerPoint * COLUMNS / AS5600_COUNTS) + 1;
+    uint32_t columnsAdvanced = (triggerPoint * TOTAL_COLUMNS / AS5600_COUNTS) + 1;
 
-    columnIndex = (columnIndex + columnsAdvanced) % COLUMNS;
-    nextColumnAngle = (columnIndex + 1) * (AS5600_COUNTS / COLUMNS);
+    columnIndex = (columnIndex + columnsAdvanced) % TOTAL_COLUMNS;
+    nextColumnAngle = (columnIndex + 1) * (AS5600_COUNTS / TOTAL_COLUMNS);
 
     // Take care of angle wrapping from 360->0
     if (nextColumnAngle >= AS5600_COUNTS) {
@@ -1094,6 +1088,16 @@ float updatePID(float rpmMeasured, float targetRPM) {
   if (output > PWM_MAX) output = PWM_MAX;
   if (output < PWM_MIN) output = PWM_MIN;
 
+  // Don't let it change too quickly
+  /*
+  if(lastPWM - output >= PWM_DELTA_MAX) {
+    output = lastPWM - PWM_DELTA_MAX;
+  } else if(output - lastPWM >= PWM_DELTA_MAX) {
+    output = lastPWM + PWM_DELTA_MAX;
+  }
+  lastPWM=output;
+  */
+
   // Save error for next step
   lastError = error;
 
@@ -1110,7 +1114,7 @@ float updatePID(float rpmMeasured, float targetRPM) {
 void setupMotor() {
     ledcSetup(0, 20000, 8);   // 20 kHz PWM, 8-bit resolution
     ledcAttachPin(MOTOR_PWM_PIN, 0);
-    ledcWrite(0,0);
+    ledcWrite(0, 0);
 }
 
 //########################################################
