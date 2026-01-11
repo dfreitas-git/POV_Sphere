@@ -42,12 +42,11 @@
  dlf 12/28/2025
 
 ### Schematics
-![Alt text](./Schematic_Sheet1.png "POV_Sphere Schematic Sheet1")
-![Alt text](./Schematic_Sheet2.png "POV_Sphere Schematic Sheet2")
+![Alt text](./Schematic_Sheet_1.png "POV_Sphere Schematic Sheet1")
+![Alt text](./Schematic_Sheet_2.png "POV_Sphere Schematic Sheet2")
 ![Alt text](./PCB.png "PC Board Layout")
 
 
 ### Build Pictures
-![Demo Video](./DemoVid.mov "Demo Video")
 ![Alt text](./BuildPicture.jpg "Assembled")
 
