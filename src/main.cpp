@@ -1,16 +1,44 @@
 // POV_DotStar_DMA.ino
-// ESP32 Arduino sketch: SK9822 (DotStar) driving with DMA, double-buffered,
-// 4x-per-revolution, and one SPI channel multiplexed to DMA the dotStar data.
+// ESP32 Arduino sketch: SK9822 (DotStar) driven with DMA, double-buffered,
+// 4x-per-revolution, and one SPI channel serially multiplexing the DMA streams
+// to the dotStar strips.
 //
 // Hardware assumptions:
-// - ESP32 (Arduino core)
+// - ESP32 using core-0 for the slow stuff: UI, menu, rotary-switch inputs, motor control.  
+//               core-1 for the fast stuff: framebuffer reading, DMA, LED strip rendering.
 // - SK9822 / DotStar LED chains: 4 rings, each 48 LEDs (total framebuffer 120x48).
 // - A SN74AHCT125 tri-state bus buffer to switch MOSI to one of 4 rings.
-// - AS5600 magnetic encoder is used to monitor the Sphere shaft angle
-// - Using a 128x64 OLED and rotary-encoder/switch for a simple menu system that will run on core-0.  
-//   The critical timing/DMA will run from core-1
+// - AS5600 magnetic encoder is used to monitor the Sphere shaft angle to adjust motorRPM, synchronize
+//   the core-1 PLL.
+// - Using a 128x64 OLED and rotary-encoder/switch for a simple menu system for user controls. 
 //
-// NOTE: Most of this code was written by chatGPT.  I just modified to add menu specifics, hardware specifics, etc.
+// Image creation:
+// - Images are imported into Gimp then scaled to 120x48 and exported using the File->"Export as C-source" format.
+//   The only options to set in the export form are "Use GLib types (guint8)" and "Save as RGB565 (16-bit)".
+// - Edit the file include/images.h and add the file that was exported.  Add a wrapper for it:
+//  const Image ImageNameWrap = {
+//    .name = "ImageName",
+//    .width = ImageName.width,
+//    .height = ImageName.height,
+//    .bytes_per_pixel = ImageName.bytes_per_pixel,
+//    .pixel_data = ImageName.pixel_data
+//  };
+//
+// - Finally, add an entry into the enum ImageID {} list and the imageTable[IMG_COUNT] array to the images.h file.
+//
+// Controls
+// -  A rotary/switch encoder is the input device.  A 128x64 OLED is the menu display.  Rotate the knob to select
+//    a menu item.  Click to select the command.  Some commands allow you to enter a value by rotating the knob.
+//    Some commands execute with another click.  Double-click to exit a command or return from a sub-menu.
+//
+// Power
+// - The POV_Sphere is powered from a 12v battery (3s2p lithium).  There is a charge jack on the battery case.
+//   A BMS is built in so you only need to supply 12.6-13v and it will limit the charge to the batteries.  
+//
+// - *** NOTE: Do not turn on the power switch or run the Sphere while charging the batteries.
+//
+
+// The majority of this code was written by colaborating with chatGPT.  I modified by add menu specifics, hardware specifics, etc.
 // dlf 12/28/2025
 
 #include <Arduino.h>
@@ -63,9 +91,6 @@ void uiTask(void* parameter) ;
 float updatePID(float rpmMeasured, float targetRPM);
 void computeCurrentAngle();
 
-// debug print limiter
-uint8_t printCount = 0;
-
 // For generating sync pulses to measure timing using a scope
 #define SYNC_PIN 26
 #define SYNC_MASK (1UL << SYNC_PIN)
@@ -73,10 +98,10 @@ uint8_t printCount = 0;
 // Semaphore to be sure setup is 100% complete before we start executing loop in core-0
 SemaphoreHandle_t initDone;
 
+// For driving a sync-pulse high and low
 inline void IRAM_ATTR sync_high() {
   REG_WRITE(GPIO_OUT_W1TS_REG, SYNC_MASK);
 }
-
 inline void IRAM_ATTR sync_low() {
   REG_WRITE(GPIO_OUT_W1TC_REG, SYNC_MASK);
 }
@@ -100,55 +125,47 @@ const int RING2_ENB = 16;      // SN74AHCT125 bus driver bit 2 select
 const int RING3_ENB = 17;      // SN74AHCT125 bus driver bit 3 select
 
 // LED / frame geometry
-const int ROWS = 48;            // vertical rows (LEDs per ring)
-const int TOTAL_COLUMNS = 120;  // total angular columns in a revolution
-const int RINGS = 4;            // number of rings
-const int COLS_PER_RING = TOTAL_COLUMNS/RINGS;            // number of rings
-const int ringEnable[] = {RING0_ENB, RING1_ENB, RING2_ENB, RING3_ENB};
+constexpr uint32_t AS5600_COUNTS = 4096;  // number of counts in 360 degrees from the AS5600 sensor
+const int ROWS = 48;                      // vertical rows (LEDs per ring)
+constexpr uint32_t COLUMNS = 120;         // total angular columns in a revolution
+const int RINGS = 4;                      // number of LED rings
+const int COLS_PER_RING = COLUMNS/RINGS;  // number of columns each ring fills
+const int ringEnable[] = {RING0_ENB, RING1_ENB, RING2_ENB, RING3_ENB};  // Pins that control the mux for the serial DMA
 
 // dotStar specifics
-const int BYTES_PER_LED = 4;  // dotStart uses 4 bytes per LED (global, B, G, R in common libs)
-
+const int BYTES_PER_LED = 4;       // dotStart uses 4 bytes per LED (global, B, G, R in common libs)
 const int START_FRAME_BYTES = 4;
 const int END_FRAME_BYTES = 4;
 const int LEDS_PER_COLUMN = ROWS;
 const int FRAME_COLUMN_BYTES = LEDS_PER_COLUMN * 3; // one byte per R/G/B
-const int TOTAL_COLUMNS_RGB_BYTES = TOTAL_COLUMNS * LEDS_PER_COLUMN * 3;  // one byte per R/G/B
+const int TOTAL_COLUMNS_RGB_BYTES = COLUMNS * LEDS_PER_COLUMN * 3;  // total number of bytes in the framebuffers
 
 // We'll build each column as: [4-byte start frame][48 * 4 bytes LED frames][4-byte end frame]
 const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED) + END_FRAME_BYTES;
-const int TOTAL_COLUMNS_BYTES = TOTAL_COLUMNS * COLUMN_PAYLOAD;
+const int TOTAL_COLUMNS_BYTES = COLUMNS * COLUMN_PAYLOAD;
 
-// Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
-uint16_t rawAngleOffset = 0; 
-
-// State Variables for keeping track of column count
-constexpr uint32_t AS5600_COUNTS = 4096;
-constexpr uint32_t COLUMNS   = 120;
-uint32_t angleUnwrapped = 0;
+uint16_t framebufferOffset=0;      // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
+unsigned long lastScrollTime;
+#define SCROLL_UPDATE_TIME 50      // How often (in milliseconds) to update the framebuffer offset pointer.  Controls how fast the image scrolls around the Sphere.
 
 // Core-0 will do the actual angle measurements, Core-1 will sync to them
 volatile uint32_t measuredAngle;   // AS5600 raw
-uint32_t lastMeasuredTime;    // micros() timestamp
-#define MAX_TRIM 2   // The most we allow core-0 to adjust the angle being computed by core-1
+uint32_t lastMeasuredTime;         // micros() timestamp
+#define MAX_TRIM 2                 // The most we allow core-0 to adjust the angle being computed by core-1
 
 // Core-1 angle values calculated and pll-locked to core-0 actual angle measurements
 #define OMEGA_SHIFT 16
-#define OMEGA_TRIM_PERIOD 30000000  // The amount of time we'd want to apply frequency trim to our core-1 VCO
+#define OMEGA_TRIM_PERIOD 30000000  // The amount of time (in microseconds) we'd want to apply frequency trim over to our core-1 VCO
 #define PHASE_DEADBAND 10           // Any angle error less than this and we don't apply any more correction to the VCO
-#define KP_SHIFT   12
-#define KI_SHIFT   16
-#define KP 16 
-#define KI 4
 
-int64_t angle_accum;            // high precision
+// Core-1 PLL variables
+int64_t angle_accum;            // 64-bits so integer math doesn't lose remainder precision
 int32_t angle_q;                // current predicted angle (Q0, 0–4095)
 volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
 int32_t omega;                  // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
 uint32_t lastAngleTime;         // Used by core-1 to calculate dt between angle calculations
 uint32_t phase_error;           // Current error between measured angle from core-0 and computed angle on core-1
 volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
-
 
 // Core-1 column position vars
 uint32_t nextColumnAngle = 0;
@@ -165,6 +182,7 @@ const int MOTOR_PWM_PIN = 25; // To control the motor speed
 
 Adafruit_AS5600 as5600;  // magnetic angle sensor
 const uint32_t samplePeriod_us = 20000; // minimum time (us) between sampling the angle measurement in core-0
+#define PID_UPDATE_TIME 100      // How many milliseconds between updating the motor PWM.
 uint16_t lastAngle = 0;
 float motorRPM = 0.0f;
 
@@ -174,6 +192,7 @@ const uint32_t RPM_TIMEOUT_MS = 200; // if no pulses for 200ms, zero RPM
 // ====== PID control ======
 float targetRPM = 360.0;
 
+// Motor control PID parameters
 float Kp = 0.2f;
 float Ki = 0.8f;
 float Kd = 0.02f;
@@ -195,7 +214,7 @@ const float DERIV_FILTER_TAU = 0.05f; // derivative low-pass (seconds). 0.01..0.
 spi_device_handle_t spi = nullptr;
 
 // Double buffers allocated on heap (to make swapping trivial)
-uint8_t *frontBuffer = nullptr;   // Used by core-1.  Displayed buffer (contains TOTAL_COLUMNS columns sequentially)
+uint8_t *frontBuffer = nullptr;   // Used by core-1.  Displayed buffer (contains COLUMNS columns sequentially)
 uint8_t *backBuffer  = nullptr;   // Written by core-0 (next frame)
 volatile bool backBufferFilled = false;  // Set to true when a valid image has been loaded into it.
 
@@ -270,7 +289,7 @@ void encoderService() {
 /* ===================== Global Variables ===================== */
 int brightness = 3;  // Sphere LED brightness
 uint8_t fiveBitBright; // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
-volatile bool motorOnOffFlag = 1;   // Turn the motor on/off
+volatile bool motorOnOffFlag = 0;   // Turn the motor on/off
 volatile bool scrollOnOffFlag = 0;   // Turn the scrolling of the image on/off
 uint8_t imageToDisplayIndex = 0;
 
@@ -294,10 +313,10 @@ void motorOnOff(MenuItem*) {
 void scrollOnOff(MenuItem*) {
   if(scrollOnOffFlag == 1) {
     scrollOnOffFlag = 0;
-     Serial.println("Rotate Off");
+     Serial.println("Scroll Off");
   } else {
     scrollOnOffFlag = 1;
-     Serial.println("Rotate On");
+     Serial.println("Scroll On");
   }
 }
 
@@ -319,8 +338,8 @@ MenuItem* settingsChildren[] = {
 MenuItem* mainChildren[] = {
   &menuDisplay,
   &menuSettings,
-  &menuMotorOnOff,
-  &menuScrollOnOff
+  &menuScrollOnOff,
+  &menuMotorOnOff
 };
 
 void buildMenu() {
@@ -586,6 +605,7 @@ void setup() {
 
   // For the core-0 angle measurement update
   lastMeasuredTime = millis();  //Used by core-0
+  lastScrollTime = lastMeasuredTime;  // Used for framebuffer scrolling when rotating the image around the Sphere
   lastAngleTime = micros();  // Used by core-1
 
   // Initialize the column number based on where the shaft is sitting
@@ -675,8 +695,18 @@ void uiTask(void* parameter) {
       lastMeasuredTime = now;
     }
   
+    // Rotates the image by shifting the index into the framebuffer
+    unsigned long curMillis = millis();
+    if(scrollOnOffFlag &&  curMillis - lastScrollTime > SCROLL_UPDATE_TIME) {
+      framebufferOffset--;  // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
+      if(framebufferOffset < 0) {
+        framebufferOffset = COLUMNS - 1;
+      }
+      lastScrollTime=curMillis;
+    }
+    
     //  PID speed regulation
-    if (millis() - lastPidMs > 100) {
+    if (curMillis - lastPidMs > PID_UPDATE_TIME) {
       float pwm = updatePID(motorRPM, targetRPM);
   
       // See if the user wants the motor off
@@ -687,7 +717,6 @@ void uiTask(void* parameter) {
         //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
       }
     }
-
 
     // Now go check the encoder/switch for user input
     int16_t delta = encoder.getValue();
@@ -715,12 +744,6 @@ void uiTask(void* parameter) {
       fillBackbuffer();
       backBufferFilled = true;
     }
-
-    // Set the image to a given position if we are not scrolling it.
-    if(scrollOnOffFlag == 0) {
-       //rawAngleOffset = 3584;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
-       rawAngleOffset = 0;  // Amount to offset the angle measurement to rotate the starting point of the image (range 0-4096 = 0-360 degrees)
-    }
   }
 }
 
@@ -732,20 +755,15 @@ void loop() {
   //dlf sync_high();  // Debug edge to measure timing on a scope
 
   // Make a local copy of the shaft speed that core-0 measured.
+  // Add a shaft speed offset if we are scrolling
+  //omega = omega_ff;
   omega = omega_ff;
 
   // Now compute the angle_q for the current time (i.e. what the Sphere angle currently is)
   computeCurrentAngle();   
 
-  uint16_t adjustedAngle = (angle_q + rawAngleOffset) % AS5600_COUNTS;  // modulo to wrap result in case of overflow
+  uint16_t adjustedAngle = angle_q % AS5600_COUNTS;  // modulo to wrap result in case of overflow
 
-  // Rotates the image by shifting the rawAngle each cycle through the loop
-  if(scrollOnOffFlag) {
-    rawAngleOffset--;
-    if(rawAngleOffset < 0) {
-      rawAngleOffset = AS5600_COUNTS;
-    }
-  }
   int32_t triggerPoint = adjustedAngle - nextColumnAngle;
   if(triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
   if(triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
@@ -778,7 +796,7 @@ void loop() {
   
     // Go update the strips. 
     if(!dmaBusy) {
-      updateColumnLEDs(columnIndex);
+      updateColumnLEDs((columnIndex + framebufferOffset) % COLUMNS);
     }
   }
 }
@@ -798,14 +816,14 @@ void updateColumnLEDs(uint16_t columnIndex) {
   // Need to reverse the column index since the sphere is rotating clockwise which means it's 
   // painting right to left from the framebuffer (i.e. highest index to lowest)
 
-  int reversedColumn = TOTAL_COLUMNS - 1 - columnIndex;
+  int reversedColumn = COLUMNS - 1 - columnIndex;
 
   // Start DMA for current column.  For each column, stream out the four rings led data
   for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
     uint8_t baseCol = ringIndex * COLS_PER_RING;
     uint8_t *colPtr;
 
-    colPtr = frontBuffer + (((baseCol + reversedColumn) % TOTAL_COLUMNS) * 3);  // modulo 120 so we wrap when not starting at col-0.  Multiply by 3-bytes to step across rgb fields
+    colPtr = frontBuffer + (((baseCol + reversedColumn) % COLUMNS) * 3);  // modulo 120 so we wrap when not starting at col-0.  Multiply by 3-bytes to step across rgb fields
 
     // Transform column data into dotStar format.  Convert to rgb888, apply brightness and gamma correction
     buildColumn(dst,colPtr);
@@ -826,7 +844,7 @@ void updateColumnLEDs(uint16_t columnIndex) {
 }
 
 //#################################################################################
-// Allocate contiguous memory for the entire frame (TOTAL_COLUMNS * COLUMN_PAYLOAD)
+// Allocate contiguous memory for the entire frame (COLUMNS * COLUMN_PAYLOAD)
 //#################################################################################
 void ensureBuffersAllocated() {
   if (frontBuffer == nullptr) {
@@ -891,9 +909,9 @@ void fillBackbuffer() {
 
       // Now store the rgb (three bytes per row) data into the backbuffer.  In the rendering (by core-1), 
       // we will add the start bytes, brightness, gamma, and stop bytes before DMA to the dotStars.
-      backBuffer[(row * TOTAL_COLUMNS * 3) + (col * 3)] = r8;
-      backBuffer[(row * TOTAL_COLUMNS * 3) + (col * 3 + 1)] = g8;
-      backBuffer[(row * TOTAL_COLUMNS * 3) + (col * 3 + 2)] = b8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3)] = r8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
 
       // Advance to next row, same column
       p += imageTable[imageToDisplayIndex]->width * 2;
@@ -901,9 +919,9 @@ void fillBackbuffer() {
   }
 }
 
-//########################################################
+//############################################################
 // Build one dotStar dotStar column (start+48*4+end) into dst
-//########################################################
+//############################################################
 void buildColumn(uint8_t *dst, uint8_t *colPtr) {
   int idx = 0;
 
@@ -917,9 +935,9 @@ void buildColumn(uint8_t *dst, uint8_t *colPtr) {
   for (int i = 0; i < LEDS_PER_COLUMN; ++i) {
 
     // Extract the rgb fields for this LED row
-    uint8_t r = colPtr[i*TOTAL_COLUMNS*3];
-    uint8_t g = colPtr[i*TOTAL_COLUMNS*3+1];
-    uint8_t b = colPtr[i*TOTAL_COLUMNS*3+2];
+    uint8_t r = colPtr[i*COLUMNS*3];
+    uint8_t g = colPtr[i*COLUMNS*3+1];
+    uint8_t b = colPtr[i*COLUMNS*3+2];
 
     // Apply gamma correction
     r = gamma24[r];
