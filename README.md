@@ -48,5 +48,5 @@
 
 
 ### Build Pictures
-![Alt text](./BuildPicture.jpg "Assembled")
+![Alt text](./BuildPicture.jpeg "Assembled")
 
