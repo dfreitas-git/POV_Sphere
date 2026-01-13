@@ -56,6 +56,8 @@
 #include <soc/gpio_reg.h>
 #include <soc/gpio_struct.h>  // if we ever use GPIO.out_w1ts
 
+int printCount = 0;  //Used to print limited debug messages in the loop so we don't flood the serial monitor
+
 /* ===================== Menu Types ===================== */
 enum MenuItemType {
   MENU_SUBMENU,
@@ -83,13 +85,14 @@ void buildColumn(uint8_t *dst, uint8_t *colPtr);
 void startColumnDma(uint8_t *columnData);
 void pollDmaComplete();
 void updateColumnLEDs(uint16_t columnIndex);
-void fillBackbuffer(); 
 void swapBuffersAtomic();
 void ensureBuffersAllocated();
 void freeBuffers();
 void uiTask(void* parameter) ;
 float updatePID(float rpmMeasured, float targetRPM);
 void computeCurrentAngle();
+void fillBB_image(); 
+void fillBB_fade();
 
 // For generating sync pulses to measure timing using a scope
 #define SYNC_PIN 26
@@ -113,9 +116,9 @@ inline void IRAM_ATTR sync_low() {
 // NOTE: Many "APA102-compatible" strips (e.g. SK9822) may use GRB internally.
 #define DOTSTAR_ORDER_GRB   0   // set to 0 for true APA102 (BGR)
 #define GIMP_RGB565_LITTLE_ENDIAN  1  // Gimp ouputs rgb565 in little endian byte ordering
-#define BRIGHTNESS_R 255  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
-#define BRIGHTNESS_G 200  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
-#define BRIGHTNESS_B 200  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
+#define BRIGHTNESS_R 200  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
+#define BRIGHTNESS_G 225  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
+#define BRIGHTNESS_B 255  // 0–255 (≈75%)  Use this to brighten/dim LED's after gamma correction
 
 const int PIN_SPI_MOSI = 13;  // MOSI ( DATA)
 const int PIN_SPI_SCLK = 14;  // SCLK ( CLK)
@@ -144,9 +147,10 @@ const int TOTAL_COLUMNS_RGB_BYTES = COLUMNS * LEDS_PER_COLUMN * 3;  // total num
 const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED) + END_FRAME_BYTES;
 const int TOTAL_COLUMNS_BYTES = COLUMNS * COLUMN_PAYLOAD;
 
+#define SCROLL_UPDATE_TIME 50      // How often (in milliseconds) to update the framebuffer offset pointer.  Controls how fast the image scrolls around the Sphere.
 uint16_t framebufferOffset=0;      // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
 unsigned long lastScrollTime;
-#define SCROLL_UPDATE_TIME 50      // How often (in milliseconds) to update the framebuffer offset pointer.  Controls how fast the image scrolls around the Sphere.
+unsigned long lastAnimateTime;     
 
 // Core-0 will do the actual angle measurements, Core-1 will sync to them
 volatile uint32_t measuredAngle;   // AS5600 raw
@@ -336,10 +340,10 @@ MenuItem* settingsChildren[] = {
 };
 
 MenuItem* mainChildren[] = {
-  &menuDisplay,
-  &menuSettings,
+  &menuMotorOnOff,
   &menuScrollOnOff,
-  &menuMotorOnOff
+  &menuDisplay,
+  &menuSettings
 };
 
 void buildMenu() {
@@ -616,8 +620,6 @@ void setup() {
   constexpr uint32_t base_step = AS5600_COUNTS / COLUMNS;
   nextColumnAngle = (columnIndex + 1) * base_step;
 
-  Serial.println("Setup complete.");
-
   // Create tase to run on core-0 for the UI code
   xTaskCreatePinnedToCore(
     uiTask,
@@ -732,6 +734,7 @@ void uiTask(void* parameter) {
       handleDoubleClick();
     }
 
+    // Update the OLED
     updateBlink();
     drawMenu();
 
@@ -741,8 +744,9 @@ void uiTask(void* parameter) {
 
     // Load the backBuffer with the next frame to display
     if (!backBufferFilled) {
-      fillBackbuffer();
+      imageTable[imageToDisplayIndex]->functionPtr();
       backBufferFilled = true;
+      lastAnimateTime = millis();
     }
   }
 }
@@ -878,14 +882,61 @@ void swapBuffersAtomic() {
   interrupts();
 }
 
+//##############################################
+// Function to display a fade on the Sphere
+//##############################################
+
+//####################################
+//  Slow fade in/out of solid colors
+//
+//  cycle increments once per full fade
+//  phase (in radians) is always 0 … 2π within that cycle
+//  pick the color from cycle % 3
+//  Brightness is just sinf(phase) (shifted to 0-255 result)
+//####################################
+void fillBB_fade() {
+
+  const float periodMs = 3000.0f;  // one full fade cycle
+  float t = millis();
+
+  // What cycle are we in?
+  uint32_t cycle = uint32_t(t / periodMs);
+
+  // Compute the phase angle (in radians) for the given time within the cycle
+  float phase = (t - cycle * periodMs) * (2.0f * PI / periodMs);  
+
+  // Brightness: [-1,1] -> [0,255]
+  // Use cos so brightness peaks are in phase 
+  uint8_t bright = (1 - cos(phase)) * 0.5 * 255;
+
+  // Choose color deterministically
+  uint8_t r8 = 0, g8 = 0, b8 = 0;
+  switch (cycle % 3) {
+    case 0: r8 = bright; break;
+    case 1: g8 = bright; break;
+    case 2: b8 = bright; break;
+  }
+
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+    }
+  }
+}
+
 //###################################################################
 // Fill the backbuffer in preperation for the next displayed frame
 //###################################################################
-void fillBackbuffer() {
+void fillBB_image() {
 
+  // Reading an image created by Gimp (loaded from images.h)
+  // and expanding/writing the bytes into the framebuffer.  framebuffer always
+  // is loaded with rgb888  (one byte per r, g, b) per pixel.
   for (unsigned col = 0; col < imageTable[imageToDisplayIndex]->width; col++) {
 
-    // Start at row 0, this column
+    // Start at row 0, this column in the Gimp pixel array
     const uint8_t* p = imageTable[imageToDisplayIndex]->pixel_data + (col * 2);
     for (unsigned row = 0; row < imageTable[imageToDisplayIndex]->height; row++) {
       #if GIMP_RGB565_LITTLE_ENDIAN
@@ -894,13 +945,10 @@ void fillBackbuffer() {
         uint16_t rgb565 = (p[0] << 8) | p[1];
       #endif
 
+      // Read each of the sub-fields to extract rgb from the Gimp 2-byte data
       uint8_t r5 = (rgb565 >> 11) & 0x1F;
       uint8_t g6 = (rgb565 >> 5)  & 0x3F;
       uint8_t b5 =  rgb565        & 0x1F;
-
-      //uint8_t b5 = (rgb565 >> 11) & 0x1F;
-      //uint8_t g6 = (rgb565 >> 5)  & 0x3F;
-      //uint8_t r5 =  rgb565        & 0x1F;
 
       // Expand 5/6-bit channels to full 8-bit range (0–255)
       uint8_t r8 = (r5 << 3) | (r5 >> 2);
