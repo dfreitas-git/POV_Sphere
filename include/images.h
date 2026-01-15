@@ -5,6 +5,8 @@
 // prototypes
 extern void fillBB_image(); 
 extern void fillBB_fade();
+extern void fillBB_hFade();
+extern void fillBB_vFade();
 
 typedef struct {
     const char *name;
@@ -1918,6 +1920,25 @@ const Image fadeWrap = {
     .functionPtr = fillBB_fade,
 };
 
+// Horizontal bars that fade and change color on each cycle
+const Image hFadeWrap = {
+    .name = "hFade",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_hFade,
+};
+
+// Vertical bars that fade and change color on each cycle
+const Image vFadeWrap = {
+    .name = "vFade",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_vFade,
+};
 
 /****************************************************/
 /* List of images and pointers to the image structures
@@ -1929,10 +1950,14 @@ enum ImageID {
     IMG_worldMap,
     IMG_saffron,
     IMG_fade,
+    IMG_hFade,
+    IMG_vFade,
     IMG_COUNT
 };
 
 const Image *imageTable[IMG_COUNT] = {
+    &hFadeWrap,
+    &vFadeWrap,
     &helloWorldWrap,
     &worldMapWrap,
     &saffronWrap,

@@ -166,9 +166,10 @@ uint32_t lastMeasuredTime;         // micros() timestamp
 int64_t angle_accum;            // 64-bits so integer math doesn't lose remainder precision
 int32_t angle_q;                // current predicted angle (Q0, 0–4095)
 volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
-int32_t omega;                  // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
+int32_t core_1_omega_ff;        // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
+uint16_t core_1_omega_trim;     // local copy used by core-1.
 uint32_t lastAngleTime;         // Used by core-1 to calculate dt between angle calculations
-uint32_t phase_error;           // Current error between measured angle from core-0 and computed angle on core-1
+long phase_error;               // Current error between measured angle from core-0 and computed angle on core-1
 volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
 
 // Core-1 column position vars
@@ -189,9 +190,6 @@ const uint32_t samplePeriod_us = 20000; // minimum time (us) between sampling th
 #define PID_UPDATE_TIME 100      // How many milliseconds between updating the motor PWM.
 uint16_t lastAngle = 0;
 float motorRPM = 0.0f;
-
-const uint32_t MIN_DT_US = 10000; // ignore pulses closer than 10ms => noise filter
-const uint32_t RPM_TIMEOUT_MS = 200; // if no pulses for 200ms, zero RPM
 
 // ====== PID control ======
 float targetRPM = 360.0;
@@ -293,7 +291,7 @@ void encoderService() {
 /* ===================== Global Variables ===================== */
 int brightness = 3;  // Sphere LED brightness
 uint8_t fiveBitBright; // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
-volatile bool motorOnOffFlag = 0;   // Turn the motor on/off
+volatile bool motorOnOffFlag = 0;   // Turn the mhtor on/off
 volatile bool scrollOnOffFlag = 0;   // Turn the scrolling of the image on/off
 uint8_t imageToDisplayIndex = 0;
 
@@ -593,6 +591,7 @@ void setup() {
       delay(10);
     }
   }
+  Wire.setClock(800000);  // Speed up I2c to AS5600
 
   // Allocate buffers
   ensureBuffersAllocated();
@@ -610,7 +609,9 @@ void setup() {
   // For the core-0 angle measurement update
   lastMeasuredTime = millis();  //Used by core-0
   lastScrollTime = lastMeasuredTime;  // Used for framebuffer scrolling when rotating the image around the Sphere
-  lastAngleTime = micros();  // Used by core-1
+
+  // Used by core-1 when calculating it's PLL angle
+  lastAngleTime = micros(); 
 
   // Initialize the column number based on where the shaft is sitting
   // Do multiply before divide to maintain precision
@@ -633,7 +634,6 @@ void setup() {
 
   // We are done with setup.  Release the semaphore
   xSemaphoreGive(initDone);   // LAST LINE
-
 }
 
 //###################################################################
@@ -647,20 +647,18 @@ void uiTask(void* parameter) {
 
   for (;;) {
 
+    //sync_high();  // Debug rising edge to measure timing on a scope
+    //sync_low();  // Debug falling edge to measure timing on a scope
+
     // Periodically measure the shaft angle for motor rpm/PID control and core-1 PLL locking
     uint32_t now = micros();
+    int angleDelta;
     if (now - lastMeasuredTime >= samplePeriod_us) {
 
       // Go do a shaft angle measurement so core-1 angle-calculating "pll" can lock to it. 
       measuredAngle = as5600.getRawAngle();
 
-      uint16_t deltaAngle = measuredAngle - lastAngle;
-  
-      // Takes care of case where we cross the 360 degree back to 0 degree boundary
-      if (deltaAngle > 2048)  deltaAngle -= AS5600_COUNTS;
-      if (deltaAngle < -2048) deltaAngle += AS5600_COUNTS;
-
-      // When we get a new actual shaft-angle measurement, use it to adjust our computed angle to eliminate any drift
+      // When we get a new actual shaft-angle measurement, use it to adjust our core-1 computed angle to eliminate any drift
       phase_error = measuredAngle - angle_q;
 
       // Takes care of case where we cross the 360 degree back to 0 degree boundary
@@ -679,19 +677,25 @@ void uiTask(void* parameter) {
       omega_trim = constrain(omega_trim, -MAX_TRIM, MAX_TRIM);
 
       // Check the motor speed
-      int16_t delta = measuredAngle - lastAngle;
+      angleDelta = measuredAngle - lastAngle;
   
       // Takes care of case where we cross the 360 degree back to 0 degree boundary
-      if (delta > 2048)  delta -= AS5600_COUNTS;
-      if (delta < -2048) delta += AS5600_COUNTS;
+      if (angleDelta > 2048)  angleDelta -= AS5600_COUNTS;
+      if (angleDelta < -2048) angleDelta += AS5600_COUNTS;
   
-      // Compute rpm by measuring the delta-angle between polling
-      float dt_us = (now - lastMeasuredTime) * 1e-6;
-      motorRPM = (delta * 60.0) / ((AS5600_COUNTS * 1.0) * dt_us);
+      // Compute rpm by measuring the angle Delta between polling
+      float dt_s = (now - lastMeasuredTime) * 1e-6;
+      motorRPM = (angleDelta * 60.0) / ((AS5600_COUNTS * 1.0) * dt_s);
 
       // Compute the shaft speed that will be used by core-1 to calculate the shaft angle
       // omega_ff is in angle-counts/us  (scaled up by OMEGA_SHIFT for integer math.)
       omega_ff = int32_t(((motorRPM * pow(2,OMEGA_SHIFT)/ 60) * AS5600_COUNTS) / 1000000);
+
+      /*
+      if(motorOnOffFlag) {
+        Serial.printf("RPM: %.1f  now: %d   lastMeasuredTime: %d   dt_s: %.4f  angleDelta: %d  measuredAngle: %d\n", motorRPM, now, lastMeasuredTime,dt_s, angleDelta, measuredAngle);
+      }
+      */
 
       lastAngle = measuredAngle;
       lastMeasuredTime = now;
@@ -716,14 +720,12 @@ void uiTask(void* parameter) {
         ledcWrite(0, 0);
       } else {
         ledcWrite(0, (int)pwm);
-        //Serial.printf("RPM: %.2f   PWM: %.2f\n", motorRPM, pwm);
       }
     }
-
     // Now go check the encoder/switch for user input
-    int16_t delta = encoder.getValue();
-    if (delta != 0) {
-      handleRotation(delta);
+    int encoderDelta = encoder.getValue();
+    if (encoderDelta != 0) {
+      handleRotation(encoderDelta);
     }
 
     ClickEncoder::Button b = encoder.getButton();
@@ -751,17 +753,16 @@ void uiTask(void* parameter) {
   }
 }
 
+
+
 //#########################################################################
 // Main Loop for core-1. Core-1 will run the critical POV data DMA loop.
 //#########################################################################
 void loop() {
 
-  //dlf sync_high();  // Debug edge to measure timing on a scope
-
   // Make a local copy of the shaft speed that core-0 measured.
-  // Add a shaft speed offset if we are scrolling
-  //omega = omega_ff;
-  omega = omega_ff;
+  core_1_omega_ff = omega_ff;      // local copies used by core-1.
+  core_1_omega_trim = omega_trim;     
 
   // Now compute the angle_q for the current time (i.e. what the Sphere angle currently is)
   computeCurrentAngle();   
@@ -772,7 +773,6 @@ void loop() {
   if(triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
   if(triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
 
-  //dlf sync_low();  // Debug edge to measure timing on a scope
 
   // Once the current angle has reached the next column, trigger a DMA transfer if the backBuffer is ready with a new frame
   if(triggerPoint >= 0) {
@@ -910,13 +910,13 @@ void fillBB_fade() {
   uint8_t bright = (1 - cos(phase)) * 0.5 * 255;
 
   // Choose color deterministically
+  // Switches to the next color when the cycle count increments
   uint8_t r8 = 0, g8 = 0, b8 = 0;
   switch (cycle % 3) {
     case 0: r8 = bright; break;
     case 1: g8 = bright; break;
     case 2: b8 = bright; break;
   }
-
   for (uint8_t col = 0; col < COLUMNS; col++) {
     for (uint8_t row = 0; row < ROWS; row++) {
       backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
@@ -926,8 +926,108 @@ void fillBB_fade() {
   }
 }
 
+//#############################################
+//  Horizontal stripes with fading color changes
+//#############################################
+void fillBB_hFade() {
+
+  // Color fade speed
+  const float periodMs = 3000.0f;  // one full fade cycle
+
+  // animation speed.  1.0 Hz = one cycle every second
+  float omega = 2.0f * PI * 2.0f;     
+  //float omega = 2.0f * PI * 0.5f;     
+
+  float t = millis();
+  float tSec = t * 0.001f;   // seconds
+  float animatePhase = omega * tSec;  // Convert to phase to move the image
+
+  // What cycle are we in?
+  uint32_t cycle = uint32_t(t / periodMs);
+
+  // Compute the phase angle (in radians) for the given time within the cycle
+  float phase = (t - cycle * periodMs) * (2.0f * PI / periodMs);  
+
+  // Brightness: [-1,1] -> [0,255]
+  // Use cos so brightness peaks are in phase 
+  uint8_t colorBright = (1 - cos(phase)) * 0.5 * 255;
+
+  // Choose color deterministically
+  // Switches to the next color when the cycle count increments
+
+  // Precompute sin of phi to keep it out of the inner loop
+  float rowSin[ROWS];
+  for (int row = 0; row < ROWS; row++) {
+    float phi = ((float(row) / float(ROWS)) * PI) - PI/2.0;
+    rowSin[row] = sin(phi * 8 + animatePhase);
+  }
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
+      uint8_t bright = uint8_t((rowSin[row] * 0.5f + 0.5f) * colorBright);
+      uint8_t r8 = 0, g8 = 0, b8 = 0;
+      switch (cycle % 3) {
+        case 0: r8 = bright; break;
+        case 1: g8 = bright; break;
+        case 2: b8 = bright; break;
+      }
+      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+    }
+  }
+}
+
+//#############################################
+//  Vertical stripes with fading color changes
+//#############################################
+void fillBB_vFade() {
+
+  // Color fade speed
+  const float periodMs = 3000.0f;  // one full fade cycle
+
+  // animation speed.  1.0 Hz = one cycle every second
+  float omega = 2.0f * PI * 5.0f;     
+
+  float t = millis();
+  float tSec = t * 0.001f;   // seconds
+  float animatePhase = omega * tSec;  // Convert to phase to move the image
+
+  // What cycle are we in?
+  uint32_t cycle = uint32_t(t / periodMs);
+
+  // Compute the phase angle (in radians) for the given time within the cycle
+  float phase = (t - cycle * periodMs) * (2.0f * PI / periodMs);  
+
+  // Brightness: [-1,1] -> [0,255]
+  // Use cos so brightness peaks are in phase 
+  uint8_t colorBright = (1 - cos(phase)) * 0.5 * 255;
+
+  // Choose color deterministically
+  // Switches to the next color when the cycle count increments
+  for (int col = 0; col < COLUMNS; col++) {
+    float theta = (col / float(COLUMNS)) * 2*PI;
+    for (int row = 0; row < ROWS; row++) {
+      float phi = (row / float(ROWS)) * PI - PI/2;
+
+      uint8_t bright = uint8_t((sin(theta * 12 + animatePhase) * 0.5f + 0.5f) * colorBright);
+
+      uint8_t r8 = 0, g8 = 0, b8 = 0;
+      switch (cycle % 3) {
+        case 0: r8 = bright; break;
+        case 1: g8 = bright; break;
+        case 2: b8 = bright; break;
+      }
+      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+    }
+  }
+}
+
 //###################################################################
 // Fill the backbuffer in preperation for the next displayed frame
+// Assumes a 120x48 image imported from Gimp in rgb565 format (two
+// bytes per pixel).  Images stored in include/images.h
 //###################################################################
 void fillBB_image() {
 
@@ -1192,6 +1292,6 @@ void computeCurrentAngle() {
     uint32_t dt = now - lastAngleTime;
     lastAngleTime = now;
 
-    angle_accum += (omega_ff + omega_trim) * dt;
+    angle_accum += (core_1_omega_ff + core_1_omega_trim) * dt;
     angle_q = (angle_accum >> OMEGA_SHIFT) & 0x0FFF;
 }
