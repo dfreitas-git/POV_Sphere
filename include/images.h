@@ -7,6 +7,8 @@ extern void fillBB_image();
 extern void fillBB_fade();
 extern void fillBB_hFade();
 extern void fillBB_vFade();
+extern void fillBB_Flow();
+extern void fillBB_hBands();
 
 typedef struct {
     const char *name;
@@ -1940,28 +1942,52 @@ const Image vFadeWrap = {
     .functionPtr = fillBB_vFade,
 };
 
+// Horizontal bands flowing out the top down the Sphere
+const Image hBandsWrap = {
+    .name = "hBands",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_hBands,
+};
+
+// Color flowing out the top, down the Sphere
+const Image flowWrap = {
+    .name = "Flow",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_Flow,
+};
+
 /****************************************************/
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
-    IMG_testDot,
-    IMG_testL,
+    IMG_hbands,
+    IMG_Flow,
+    IMG_hFade,
+    IMG_vFade,
     IMG_helloWorld,
     IMG_worldMap,
     IMG_saffron,
     IMG_fade,
-    IMG_hFade,
-    IMG_vFade,
+    IMG_testL,
+    IMG_testDot,
     IMG_COUNT
 };
 
 const Image *imageTable[IMG_COUNT] = {
+    &fadeWrap,
+    &flowWrap,
+    &hBandsWrap,
     &hFadeWrap,
     &vFadeWrap,
     &helloWorldWrap,
     &worldMapWrap,
     &saffronWrap,
-    &fadeWrap,
     &testLWrap,
     &testDotWrap,
 };
