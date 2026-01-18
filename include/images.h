@@ -1,16 +1,29 @@
 
 #pragma once
+#include <arduino.h>
 #include <stdint.h>
 #include <gimp_compat.h>
 
-// prototypes
-extern void fillBB_image(); 
-extern void fillBB_fade();
-extern void fillBB_hFade();
-extern void fillBB_vFade();
-extern void fillBB_paint();
-extern void fillBB_hBands();
+/****************************************************/
+/* List of images and pointers to the image structures
+/****************************************************/
+enum ImageID {
+    IMG_hbands,
+    IMG_paint,
+    IMG_hFade,
+    IMG_vFade,
+    IMG_helloWorld,
+    IMG_worldMap,
+    IMG_saffron,
+    IMG_fade,
+    IMG_testL,
+    IMG_testDot,
+    IMG_COUNT
+};
 
+//************************
+// Structure definitions
+//************************
 typedef struct {
     const char *name;
     unsigned int width;
@@ -19,6 +32,15 @@ typedef struct {
     const uint8_t *pixel_data;
     void (*functionPtr)();
 } Image;
+
+// prototypes
+extern void fillBB_image(); 
+extern void fillBB_fade();
+extern void fillBB_hFade();
+extern void fillBB_vFade();
+extern void fillBB_paint();
+extern void fillBB_hBands();
+extern const Image *imageTable[IMG_COUNT];
 
 static const struct {
   guint 	 width;
@@ -1964,32 +1986,3 @@ const Image paintWrap = {
     .functionPtr = fillBB_paint,
 };
 
-/****************************************************/
-/* List of images and pointers to the image structures
-/****************************************************/
-enum ImageID {
-    IMG_hbands,
-    IMG_paint,
-    IMG_hFade,
-    IMG_vFade,
-    IMG_helloWorld,
-    IMG_worldMap,
-    IMG_saffron,
-    IMG_fade,
-    IMG_testL,
-    IMG_testDot,
-    IMG_COUNT
-};
-
-const Image *imageTable[IMG_COUNT] = {
-    &fadeWrap,
-    &paintWrap,
-    &hBandsWrap,
-    &hFadeWrap,
-    &vFadeWrap,
-    &helloWorldWrap,
-    &worldMapWrap,
-    &saffronWrap,
-    &testLWrap,
-    &testDotWrap,
-};

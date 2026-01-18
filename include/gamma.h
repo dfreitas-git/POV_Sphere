@@ -1,4 +1,6 @@
 
+#pragma once
+
 // Gamma correction look-up-tables.
 // Generated this table with this python script:
 /* 
