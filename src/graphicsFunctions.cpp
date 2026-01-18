@@ -1,8 +1,4 @@
 
-#include <Arduino.h>
-#include <config.h>
-#include <images.h>
-#include <globals.h>
 #include <graphicsFunctions.h>
 
 // Each function can be selected by the user from the rotary-encoder/OLED interface

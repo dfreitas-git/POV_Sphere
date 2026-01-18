@@ -1,6 +1,5 @@
 
 #include <globals.h>
-#include <images.h>
 
 int brightness = 3;               // Sphere LED brightness
 uint8_t fiveBitBright;            // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)

@@ -1,6 +1,7 @@
 
 #pragma once
 #include <stdint.h>
+#include <images.h>
 
 // Mutable globlas
 extern int brightness;               // Sphere LED brightness
