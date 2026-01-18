@@ -1,13 +1,14 @@
 
 #pragma once
 #include <stdint.h>
+#include <gimp_compat.h>
 
 // prototypes
 extern void fillBB_image(); 
 extern void fillBB_fade();
 extern void fillBB_hFade();
 extern void fillBB_vFade();
-extern void fillBB_Flow();
+extern void fillBB_paint();
 extern void fillBB_hBands();
 
 typedef struct {
@@ -1952,14 +1953,15 @@ const Image hBandsWrap = {
     .functionPtr = fillBB_hBands,
 };
 
-// Color flowing out the top, down the Sphere
-const Image flowWrap = {
-    .name = "Flow",
+// Color sheeting out the top, down the Sphere
+// like paint being poured on top
+const Image paintWrap = {
+    .name = "Paint",
     .width = 120,
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_Flow,
+    .functionPtr = fillBB_paint,
 };
 
 /****************************************************/
@@ -1967,7 +1969,7 @@ const Image flowWrap = {
 /****************************************************/
 enum ImageID {
     IMG_hbands,
-    IMG_Flow,
+    IMG_paint,
     IMG_hFade,
     IMG_vFade,
     IMG_helloWorld,
@@ -1981,7 +1983,7 @@ enum ImageID {
 
 const Image *imageTable[IMG_COUNT] = {
     &fadeWrap,
-    &flowWrap,
+    &paintWrap,
     &hBandsWrap,
     &hFadeWrap,
     &vFadeWrap,

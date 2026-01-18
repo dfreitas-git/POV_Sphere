@@ -26,6 +26,14 @@
 //
 // - Finally, add an entry into the enum ImageID {} list and the imageTable[IMG_COUNT] array to the images.h file.
 //
+// Image generation:
+// - Functions with the name fillBB_<name> are algorithmic generation of patterns.  They are time based and compute
+//   the colors around the globe in terms of a periodic frequency, phase, cycle all derived from the absolute millis() time.
+//   Then we scan the rows/columns of the framebuffer, loading the computed color into the available LED locations.  Think of 
+//   it as the functions can compute color for any spot on the Sphere,  the framebuffer loads its more sparsely available 
+//   points by reading the sphere colors at those points.
+// - Edit the images.h file to add wrappers for each of the animation functions.  The functions themselves are in the images.cpp file.
+//
 // Controls
 // -  A rotary/switch encoder is the input device.  A 128x64 OLED is the menu display.  Rotate the knob to select
 //    a menu item.  Click to select the command.  Some commands allow you to enter a value by rotating the knob.
@@ -42,6 +50,7 @@
 // dlf 12/28/2025
 
 #include <Arduino.h>
+#include <stdint.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -140,6 +149,8 @@ const int END_FRAME_BYTES = 4;
 const int LEDS_PER_COLUMN = ROWS;
 const int FRAME_COLUMN_BYTES = LEDS_PER_COLUMN * 3; // one byte per R/G/B
 const int TOTAL_COLUMNS_RGB_BYTES = COLUMNS * LEDS_PER_COLUMN * 3;  // total number of bytes in the framebuffers
+int brightness = 3;               // Sphere LED brightness
+uint8_t fiveBitBright;            // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
 
 // We'll build each column as: [4-byte start frame][48 * 4 bytes LED frames][4-byte end frame]
 const int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED) + END_FRAME_BYTES;
@@ -182,17 +193,14 @@ constexpr uint32_t COLUMN_REM  = AS5600_COUNTS % COLUMNS;      // 16
 // PID motor speed control
 //##########################
 const int MOTOR_PWM_PIN = 25; // To control the motor speed
-
-Adafruit_AS5600 as5600;  // magnetic angle sensor
 const uint32_t samplePeriod_us = 20000; // minimum time (us) between sampling the angle measurement in core-0
 #define PID_UPDATE_TIME 100      // How many milliseconds between updating the motor PWM.
 uint16_t lastAngle = 0;
 float motorRPM = 0.0f;
-
-// ====== PID control ======
-float targetRPM = 360.0;
+volatile bool motorOnOffFlag = 0;   // Turn the mhtor on/off
 
 // Motor control PID parameters
+float targetRPM = 360.0;
 float Kp = 0.2f;
 float Ki = 0.8f;
 float Kd = 0.02f;
@@ -208,38 +216,59 @@ uint32_t lastPidMs = 0;  // Last time PID was updated
 const float PWM_MIN = 125.0f;
 const float PWM_MAX = 255.0f;
 
-const float DERIV_FILTER_TAU = 0.05f; // derivative low-pass (seconds). 0.01..0.2 typical
+// derivative low-pass (seconds). 0.01..0.2 typical
+const float DERIV_FILTER_TAU = 0.05f; 
 
-// SPI and DMA objects
-spi_device_handle_t spi = nullptr;
+//########################
+// Framebuffer Variables
+//########################
 
 // Double buffers allocated on heap (to make swapping trivial)
 uint8_t *frontBuffer = nullptr;   // Used by core-1.  Displayed buffer (contains COLUMNS columns sequentially)
 uint8_t *backBuffer  = nullptr;   // Written by core-0 (next frame)
 volatile bool backBufferFilled = false;  // Set to true when a valid image has been loaded into it.
-
 volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 
 // ###########################################################
 //   UI core-0 OLED/rotary-encoder/switch definitions
 // ###########################################################
-/* ===================== OLED ===================== */
+/* ==== OLED ======== */
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define SDA_OLED 32
 #define SCL_OLED 33
 #define OLED_RESET    -1     // no reset pin
 #define OLED_ADDR     0x3C
-Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET);
 
-/* ===================== Encoder ===================== */
+/* ==== Encoder ====== */
 #define ENC_A 35
 #define ENC_B 34
 #define ENC_BTN 27
+
+// ###################
+//   Objects used
+// ###################
+
+// magnetic angle sensor object
+Adafruit_AS5600 as5600;  
+
+// SPI and DMA objects
+spi_device_handle_t spi = nullptr;
+
+// UI objects
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET);
 ClickEncoder encoder(ENC_A, ENC_B, ENC_BTN, 4);
 Ticker encoderTicker;
 
-/* ===================== Menu Item ===================== */
+/* === Encoder ISR ==== */
+void encoderService() {
+  encoder.service();
+}
+
+
+// ######################################
+//   Menus and Rotary Encoder for the UI
+// #######################################
 struct MenuItem {
   const char* name;
   MenuItemType type;
@@ -270,36 +299,26 @@ struct MenuItem {
 
 TaskHandle_t uiTaskHandle;
 
-/* ===================== Global Menu State ===================== */
+
+/* ==== Global Menu State ===== */
 MenuItem* currentMenu;
 uint8_t currentIndex = 0;
 bool editingValue = false;
+uint8_t imageToDisplayIndex = 0;
 
 /* Blink control */
 bool blinkOn = true;
 uint32_t lastBlink = 0;
 const uint32_t blinkInterval = 400;  // ms
 
-
-/* ===================== Encoder ISR ===================== */
-void encoderService() {
-  encoder.service();
-}
-
-/* ===================== Global Variables ===================== */
-int brightness = 3;  // Sphere LED brightness
-uint8_t fiveBitBright; // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
-volatile bool motorOnOffFlag = 0;   // Turn the mhtor on/off
-volatile bool scrollOnOffFlag = 0;   // Turn the scrolling of the image on/off
-uint8_t imageToDisplayIndex = 0;
-
 // Images to display on the Sphere
 const int NUMBER_OF_DISPLAY_FILES = IMG_COUNT;
 const char* imageToDisplay[IMG_COUNT];
 
+volatile bool scrollOnOffFlag = 0;   // Turn the scrolling of the image on/off
 
-/* ===================== Callbacks ===================== */
 
+/* ==== Callbacks ========= */
 void motorOnOff(MenuItem*) {
   if(motorOnOffFlag == 1) {
     motorOnOffFlag = 0;
@@ -328,6 +347,7 @@ MenuItem menuDisplay;
 MenuItem menuRPM;
 MenuItem menuMotorOnOff;
 MenuItem menuScrollOnOff;
+
 
 /* ===================== Menu Construction ===================== */
 MenuItem* settingsChildren[] = {
@@ -430,7 +450,7 @@ void buildMenu() {
   currentMenu = &menuMain;
 }
 
-/* ===================== Display ===================== */
+/* ====== Display ======== */
 void drawMenu() {
   oled.clearDisplay();
   oled.setTextSize(1);
@@ -545,12 +565,13 @@ void updateBlink() {
   }
 }
 
+
 //#########################################
 // Main Setup Code
 //#########################################
 void setup() {
   Serial.begin(115200);
-  delay(2000);
+  delay(1000);
 
   // Create a semaphore for core-0 to use to be sure setup is complete before starting core-0 loop
   initDone = xSemaphoreCreateBinary();
@@ -752,7 +773,6 @@ void uiTask(void* parameter) {
 }
 
 
-
 //#########################################################################
 // Main Loop for core-1. Core-1 will run the critical POV data DMA loop.
 //#########################################################################
@@ -807,86 +827,9 @@ void loop() {
 //  Functions
 // #############################################################
 
-// #########################################
-// DMA the new column data to the four rings
-// #########################################
-void updateColumnLEDs(uint16_t columnIndex) {
-
-  uint8_t dotStarColumn[COLUMN_PAYLOAD];  // Use to hold transformed column data (rgb565->rgb888, gamma, brightness)
-  uint8_t *dst = dotStarColumn;
-
-  // Need to reverse the column index since the sphere is rotating clockwise which means it's 
-  // painting right to left from the framebuffer (i.e. highest index to lowest)
-
-  int reversedColumn = COLUMNS - 1 - columnIndex;
-
-  // Start DMA for current column.  For each column, stream out the four rings led data
-  for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
-    uint8_t baseCol = ringIndex * COLS_PER_RING;
-    uint8_t *colPtr;
-
-    colPtr = frontBuffer + (((baseCol + reversedColumn) % COLUMNS) * 3);  // modulo 120 so we wrap when not starting at col-0.  Multiply by 3-bytes to step across rgb fields
-
-    // Transform column data into dotStar format.  Convert to rgb888, apply brightness and gamma correction
-    buildColumn(dst,colPtr);
-
-    // Turn on the selected colunm bus buffer
-    digitalWrite(ringEnable[ringIndex], LOW); // enable
-    delayMicroseconds(1); // settle
-
-    startColumnDma(dst);
-
-    // Wait for the DMA to finish this column before sending the next one.
-    // This is a simple approach; can be optimized to queue multiple transfers.
-    while (dmaBusy) {
-      pollDmaComplete();
-    }
-    digitalWrite(ringEnable[ringIndex], HIGH); // disaable
-  }
-}
-
-//#################################################################################
-// Allocate contiguous memory for the entire frame (COLUMNS * COLUMN_PAYLOAD)
-//#################################################################################
-void ensureBuffersAllocated() {
-  if (frontBuffer == nullptr) {
-    frontBuffer = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_RGB_BYTES, MALLOC_CAP_8BIT);
-  }
-  if (backBuffer == nullptr) {
-    backBuffer  = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_RGB_BYTES, MALLOC_CAP_8BIT);
-  }
-  if (!frontBuffer || !backBuffer) {
-    Serial.println("ERROR: buffer allocation failed. Reduce buffer sizes or check memory.");
-    while (1) { delay(1000); }
-  }
-}
-
-//########################################################
-// Free up framebuffer memory
-//########################################################
-void freeBuffers() {
-  if (frontBuffer) { free(frontBuffer); frontBuffer = nullptr; }
-  if (backBuffer)  { free(backBuffer);  backBuffer  = nullptr; }
-}
-
-//########################################################
-// Atomic swap of front/back pointers. Must be fast.
-//########################################################
-void swapBuffersAtomic() {
-  noInterrupts();
-  uint8_t *tmp = frontBuffer;
-  frontBuffer = backBuffer;
-  backBuffer = tmp;
-  interrupts();
-}
-
-//##############################################
-// Function to display a fade on the Sphere
-//##############################################
-
-//####################################
+//#############################################
+//  Function to display a fade on the Sphere
 //  Slow fade in/out of solid colors
-//
 //  cycle increments once per full fade
 //  phase (in radians) is always 0 … 2π within that cycle
 //  Randomly switch colors at cycle boundaries
@@ -939,8 +882,9 @@ void fillBB_fade() {
 
 //###############################################################
 //  Color flowing out the top, down the Sphere in dripping sheets
+//  like paint poured on top of the Sphere.
 //###############################################################
-void fillBB_Flow() {
+void fillBB_paint() {
 
   // Create a head pointer which is the leading edge of the first spill color
   uint16_t spillTime_mS = 4000;   // Time to iterate acroll 48 rows
@@ -953,11 +897,12 @@ void fillBB_Flow() {
   struct RGB { uint8_t r, g, b; };
 
   // Pattern of how we want the boundary edge to look (just "paint" one half and we will tile it to both sides of the Sphere
+  // the numbers are the numbe of rows the column will modify its head-pointer by.  minus means up (the sphere rows start a 0 on top).  Pos means down.
   static const int8_t waveLUT[COLUMNS/2] = {
     -1,-1,0,0,-1,0,5,6,5,-3,-2,0,0,-1,-1,0,1,0,5,6,5,-3,-4,-3,0,0,-3,-4,-3,0,  1,0,0,0,1,10,11,10,0,-1,-2,-3,-2,-1,0,0,-1,0,5,8,5,1,0,-3,-3,0,-2,-1,-1,0,
   };
   
-  // Set up some pre-determined colors to cycle between (these give good contrast)
+  // Set up some pre-determined colors to cycle between (these give good contrast between each pair)
   RGB colors[] = {
                   {255,0,0},
                   {0,255,0},
@@ -1185,6 +1130,79 @@ void fillBB_image() {
   }
 }
 
+// #########################################
+// DMA the new column data to the four rings
+// #########################################
+void updateColumnLEDs(uint16_t columnIndex) {
+
+  uint8_t dotStarColumn[COLUMN_PAYLOAD];  // Use to hold transformed column data (rgb565->rgb888, gamma, brightness)
+  uint8_t *dst = dotStarColumn;
+
+  // Need to reverse the column index since the sphere is rotating clockwise which means it's 
+  // painting right to left from the framebuffer (i.e. highest index to lowest)
+
+  int reversedColumn = COLUMNS - 1 - columnIndex;
+
+  // Start DMA for current column.  For each column, stream out the four rings led data
+  for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
+    uint8_t baseCol = ringIndex * COLS_PER_RING;
+    uint8_t *colPtr;
+
+    colPtr = frontBuffer + (((baseCol + reversedColumn) % COLUMNS) * 3);  // modulo 120 so we wrap when not starting at col-0.  Multiply by 3-bytes to step across rgb fields
+
+    // Transform column data into dotStar format.  Convert to rgb888, apply brightness and gamma correction
+    buildColumn(dst,colPtr);
+
+    // Turn on the selected colunm bus buffer
+    digitalWrite(ringEnable[ringIndex], LOW); // enable
+    delayMicroseconds(1); // settle
+
+    startColumnDma(dst);
+
+    // Wait for the DMA to finish this column before sending the next one.
+    // This is a simple approach; can be optimized to queue multiple transfers.
+    while (dmaBusy) {
+      pollDmaComplete();
+    }
+    digitalWrite(ringEnable[ringIndex], HIGH); // disaable
+  }
+}
+
+//#################################################################################
+// Allocate contiguous memory for the entire frame (COLUMNS * COLUMN_PAYLOAD)
+//#################################################################################
+void ensureBuffersAllocated() {
+  if (frontBuffer == nullptr) {
+    frontBuffer = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_RGB_BYTES, MALLOC_CAP_8BIT);
+  }
+  if (backBuffer == nullptr) {
+    backBuffer  = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_RGB_BYTES, MALLOC_CAP_8BIT);
+  }
+  if (!frontBuffer || !backBuffer) {
+    Serial.println("ERROR: buffer allocation failed. Reduce buffer sizes or check memory.");
+    while (1) { delay(1000); }
+  }
+}
+
+//########################################################
+// Free up framebuffer memory
+//########################################################
+void freeBuffers() {
+  if (frontBuffer) { free(frontBuffer); frontBuffer = nullptr; }
+  if (backBuffer)  { free(backBuffer);  backBuffer  = nullptr; }
+}
+
+//########################################################
+// Atomic swap of front/back pointers. Must be fast.
+//########################################################
+void swapBuffersAtomic() {
+  noInterrupts();
+  uint8_t *tmp = frontBuffer;
+  frontBuffer = backBuffer;
+  backBuffer = tmp;
+  interrupts();
+}
+
 //############################################################
 // Build one dotStar dotStar column (start+48*4+end) into dst
 //############################################################
@@ -1236,9 +1254,9 @@ void buildColumn(uint8_t *dst, uint8_t *colPtr) {
   dst[idx++] = 0xFF;
 }
 
-//########################################################
-// ---------- SPI DMA setup ----------
-//########################################################
+//###########################
+//  SPI DMA setup 
+//###########################
 void initSpi() {
   // configure SPI bus
   spi_bus_config_t buscfg = {};
@@ -1272,9 +1290,9 @@ void initSpi() {
   //Serial.println("SPI DMA initialized");
 }
 
-//########################################################
+//###########################################################
 // Start a DMA transfer of exactly one column (non-blocking).
-//########################################################
+//###########################################################
 void startColumnDma(uint8_t *columnData) {
   if (!spi) return;
 
@@ -1320,10 +1338,10 @@ void pollDmaComplete() {
   // if ret == ESP_ERR_TIMEOUT -> not finished yet; do nothing
 }
 
-//########################################################
+//######################################################################
 // Update the PWM value sent to the motor via a PID loop
 // rpmMeasured = measured RPM (float),  targetRPM = desired RPM (global)
-//########################################################
+//######################################################################
 float updatePID(float rpmMeasured, float targetRPM) {
   uint32_t now = millis();
   float dt = (lastPidMs == 0) ? 0.05f : ( (now - lastPidMs) / 1000.0f );
@@ -1397,14 +1415,14 @@ void setupMotor() {
     ledcWrite(0,0);
 }
 
-//########################################################
+//############################################################
 // Core-1 computes the angle the Sphere every loop cycle.   
 // We do actual measurements in core-0 at a more relaxed 
 // rate and just sync-up core-1 periodically.  That allows 
 // us to remove the very slow magnetic  angle sensor 
 // (AS5600) from the fast LED/DMA/render loop and replace 
 // it with fast calculations so the max rpm can be increased.
-//########################################################
+//############################################################
 void computeCurrentAngle() {
     uint32_t now = micros();
     uint32_t dt = now - lastAngleTime;
