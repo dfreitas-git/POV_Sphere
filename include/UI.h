@@ -1,5 +1,5 @@
 
-#pragma Once
+#pragma once
 
 #include <arduino.h>
 #include <stdint.h>
