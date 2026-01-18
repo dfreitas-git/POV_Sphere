@@ -41,6 +41,13 @@ Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET);
 ClickEncoder encoder(ENC_A, ENC_B, ENC_BTN, 4);
 Ticker encoderTicker;
 
+
+/* === Encoder ISR ==== */
+void encoderService() {
+  encoder.service();
+}
+
+
 /* ==== Callbacks ========= */
 void motorOnOff(MenuItem*) {
   if(motorOnOffFlag == 1) {

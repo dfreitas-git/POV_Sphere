@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <globals.h>
 #include <images.h>
+#include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <ClickEncoder.h>
 #include <Ticker.h>
@@ -30,3 +31,4 @@ void handleRotation(int delta);
 void handleClick();
 void handleDoubleClick();
 void updateBlink();
+void encoderService();
