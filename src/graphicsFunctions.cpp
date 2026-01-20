@@ -75,29 +75,12 @@ void fillBB_paint() {
   uint32_t cycle = elapsed / spillTime_mS;        // integer cycle count  
   head %= 48;
 
-  // Struct to hold the rgb color fields
-  struct RGB { uint8_t r, g, b; };
-
   // Pattern of how we want the boundary edge to look (just "paint" one half and we will tile it to both sides of the Sphere
   // the numbers are the numbe of rows the column will modify its head-pointer by.  minus means up (the sphere rows start a 0 on top).  Pos means down.
   static const int8_t waveLUT[COLUMNS/2] = {
     -1,-1,0,0,-1,0,5,6,5,-3,-2,0,0,-1,-1,0,1,0,5,6,5,-3,-4,-3,0,0,-3,-4,-3,0,  1,0,0,0,1,10,11,10,0,-1,-2,-3,-2,-1,0,0,-1,0,5,8,5,1,0,-3,-3,0,-2,-1,-1,0,
   };
   
-  // Set up some pre-determined colors to cycle between (these give good contrast between each pair)
-  RGB colors[] = {
-                  {255,0,0},
-                  {0,255,0},
-                  {1,65,223},
-                  {10,229,0},
-                  {218,24,94},
-                  {74,160,240},
-                  {231,121,67},
-                  {72,106,16},
-                  {101,16,187},
-                  {5,17,137},
-                  {196,16,127},
-                 };
   static uint8_t bgColorIndex = 0;
   static uint8_t fgColorIndex = 1;
   uint8_t colorArrLen = sizeof(colors) / sizeof(colors[0]);
@@ -105,7 +88,6 @@ void fillBB_paint() {
   // Create instances for the foreground and background color
   static RGB fgColor, bgColor;
   static uint32_t lastCycle = 0;
-  uint8_t colorR, colorG, colorB;
 
   // head just wrapped from 47 → 0, swap rgb fg/bg colors and compute a new fg color
   if (cycle != lastCycle) {    
@@ -145,7 +127,7 @@ void fillBB_hBands() {
   // Create a head pointer which is the leading edge of the first spill color
   uint32_t elapsed = millis();
   uint8_t head = (elapsed * 48) / 3000;      // 0–47 over 3 seconds
-  head %= 48;  // Wrap back the the start once head reaches the bottom of the Sphere
+  head %= 48;  // Wrap back the start once head reaches the bottom of the Sphere
 
   // load with R, G, B for index 0,1,2
   const uint8_t r[3] = {255,0,0};
@@ -265,6 +247,75 @@ void fillBB_vFade() {
       backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+    }
+  }
+}
+
+//#############################################
+//  Checker Board with changing colors
+//#############################################
+void fillBB_checker() {
+
+  // Keep two sets of pointers for the colors befor/after the moving column dividing line
+  static uint8_t bg0ColorIndex = 0;
+  static uint8_t fg0ColorIndex = 1;
+  static uint8_t bg1ColorIndex = 2;
+  static uint8_t fg1ColorIndex = 3;
+  uint8_t colorArrLen = sizeof(colors) / sizeof(colors[0]);
+
+  // Use time to control the frequency of color changes
+  uint16_t colorPeriod = 2000;
+  uint32_t elapsed = millis();
+
+  // What cycle are we in?
+  uint32_t cycle = elapsed / colorPeriod; 
+  static uint32_t lastCycle = 0;
+
+  // The advancing line where the color1 pair replaces color0 pair.  Wrap back to 0 after advancing past COLUMNS
+  uint8_t head = (elapsed * COLUMNS) / colorPeriod % COLUMNS;  
+
+  // Change colors when head wraps
+  if (cycle != lastCycle) {    
+    bg0ColorIndex = bg1ColorIndex;
+    fg0ColorIndex = fg1ColorIndex;
+    bg1ColorIndex+=2;
+    fg1ColorIndex+=2;
+
+    if(fg1ColorIndex == colorArrLen + 1 ) {
+       bg1ColorIndex = 0;
+       fg1ColorIndex = 1;
+    }
+    lastCycle = cycle;
+  }
+
+  // Now map the color based on the position
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    uint8_t d = (head - col + COLUMNS) % COLUMNS;   // distance behind the head this current col is
+    uint8_t fgIndex, bgIndex;
+
+    // Pick the color pair based on where we are relative to the moving head dividing line
+    if (d > 0 && d <= head) {
+      fgIndex = fg1ColorIndex;
+      bgIndex = bg1ColorIndex;
+    } else {  
+      fgIndex = fg0ColorIndex;
+      bgIndex = bg0ColorIndex;
+    }
+    for (uint8_t row = 0; row < ROWS; row++) {
+
+      // shift by 3 so we "coarseify" the xor to happen across eight row/col bands
+      bool fg = ((row >> 3) ^ (col >> 3)) & 1;
+      RGB color;
+      if(fg) {
+        color = colors[fgIndex];
+      } else { 
+        color = colors[bgIndex];
+      }
+
+      uint8_t r8 = 0, g8 = 0, b8 = 0;
+      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
     }
   }
 }

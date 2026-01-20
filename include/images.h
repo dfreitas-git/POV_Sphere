@@ -8,6 +8,7 @@
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
+    IMG_checkerWrap,
     IMG_hbands,
     IMG_paint,
     IMG_hFade,
@@ -40,6 +41,7 @@ extern void fillBB_hFade();
 extern void fillBB_vFade();
 extern void fillBB_paint();
 extern void fillBB_hBands();
+extern void fillBB_checker();
 extern const Image *imageTable[IMG_COUNT];
 
 static const struct {
@@ -2102,5 +2104,15 @@ const Image paintWrap = {
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
     .functionPtr = fillBB_paint,
+};
+
+// Checker board pattern with colors cycling through the tiles
+const Image checkerWrap = {
+    .name = "Checker",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_checker,
 };
 
