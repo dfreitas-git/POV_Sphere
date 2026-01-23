@@ -88,7 +88,7 @@ constexpr int RING3_ENB = 17;      // SN74AHCT125 bus driver bit 3 select
 // LED / frame geometry
 constexpr uint32_t AS5600_COUNTS = 4096;  // number of counts in 360 degrees from the AS5600 sensor
 constexpr int ROWS = 48;                      // vertical rows (LEDs per ring)
-constexpr uint32_t COLUMNS = 120;         // total angular columns in a revolution
+constexpr uint32_t COLUMNS = 120;                  // total angular columns in a revolution
 constexpr int RINGS = 4;                      // number of LED rings
 constexpr int COLS_PER_RING = COLUMNS/RINGS;  // number of columns each ring fills
 constexpr int ringEnable[] = {RING0_ENB, RING1_ENB, RING2_ENB, RING3_ENB};  // Pins that control the mux for the serial DMA

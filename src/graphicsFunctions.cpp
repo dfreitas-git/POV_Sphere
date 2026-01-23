@@ -8,6 +8,48 @@
 // iterate across the available rows/columns and compute those pixels (basically a coarse
 // mapping of the sphere data to the sparse LED matrix overlayed onto it).
 
+//###################################################################
+// Fill the backbuffer in preperation for the next displayed frame
+// Assumes a 120x48 image imported from Gimp in rgb565 format (two
+// bytes per pixel).  Images stored in include/images.h
+//###################################################################
+void fillBB_image() {
+
+  // Reading an image created by Gimp (loaded from images.h)
+  // and expanding/writing the bytes into the framebuffer.  framebuffer always
+  // is loaded with rgb888  (one byte per r, g, b) per pixel.
+  for (unsigned col = 0; col < imageTable[imageToDisplayIndex]->width; col++) {
+
+    // Start at row 0, this column in the Gimp pixel array
+    const uint8_t* p = imageTable[imageToDisplayIndex]->pixel_data + (col * 2);
+    for (unsigned row = 0; row < imageTable[imageToDisplayIndex]->height; row++) {
+      #if GIMP_RGB565_LITTLE_ENDIAN
+        uint16_t rgb565 = (p[1] << 8) | p[0];
+      #else
+        uint16_t rgb565 = (p[0] << 8) | p[1];
+      #endif
+
+      // Read each of the sub-fields to extract rgb from the Gimp 2-byte data
+      uint8_t r5 = (rgb565 >> 11) & 0x1F;
+      uint8_t g6 = (rgb565 >> 5)  & 0x3F;
+      uint8_t b5 =  rgb565        & 0x1F;
+
+      // Expand 5/6-bit channels to full 8-bit range (0–255)
+      uint8_t r8 = (r5 << 3) | (r5 >> 2);
+      uint8_t g8 = (g6 << 2) | (g6 >> 4);
+      uint8_t b8 = (b5 << 3) | (b5 >> 2);
+
+      // Now store the rgb (three bytes per row) data into the backbuffer.  In the rendering (by core-1), 
+      // we will add the start bytes, brightness, gamma, and stop bytes before DMA to the dotStars.
+      backBuffer[(row * COLUMNS * 3) + (col * 3)] = r8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+
+      // Advance to next row, same column
+      p += imageTable[imageToDisplayIndex]->width * 2;
+    }
+  }
+}
 
 //#############################################
 //  Function to display a fade on the Sphere
@@ -147,7 +189,6 @@ void fillBB_hBands() {
 
     // Now write that color all the way around the Sphere
     for (int col = 0; col < 120; col++) {
-        uint8_t r8 = 0, g8 = 0, b8 = 0;
         backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r[colorIndex];
         backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g[colorIndex];
         backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b[colorIndex];
@@ -261,6 +302,8 @@ void fillBB_checker() {
   static uint8_t fg0ColorIndex = 1;
   static uint8_t bg1ColorIndex = 2;
   static uint8_t fg1ColorIndex = 3;
+
+  // colors defined in graphicsFunctions.h
   uint8_t colorArrLen = sizeof(colors) / sizeof(colors[0]);
 
   // Use time to control the frequency of color changes
@@ -311,8 +354,6 @@ void fillBB_checker() {
       } else { 
         color = colors[bgIndex];
       }
-
-      uint8_t r8 = 0, g8 = 0, b8 = 0;
       backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
@@ -320,45 +361,273 @@ void fillBB_checker() {
   }
 }
 
-//###################################################################
-// Fill the backbuffer in preperation for the next displayed frame
-// Assumes a 120x48 image imported from Gimp in rgb565 format (two
-// bytes per pixel).  Images stored in include/images.h
-//###################################################################
-void fillBB_image() {
+//##################
+//  Pacman chomping
+//##################
+void fillBB_pacman() {
 
-  // Reading an image created by Gimp (loaded from images.h)
-  // and expanding/writing the bytes into the framebuffer.  framebuffer always
-  // is loaded with rgb888  (one byte per r, g, b) per pixel.
-  for (unsigned col = 0; col < imageTable[imageToDisplayIndex]->width; col++) {
+  // How quickly we do framebuffer updates (in ms)
+  uint16_t animatePeriod = 500;
 
-    // Start at row 0, this column in the Gimp pixel array
-    const uint8_t* p = imageTable[imageToDisplayIndex]->pixel_data + (col * 2);
-    for (unsigned row = 0; row < imageTable[imageToDisplayIndex]->height; row++) {
-      #if GIMP_RGB565_LITTLE_ENDIAN
-        uint16_t rgb565 = (p[1] << 8) | p[0];
-      #else
-        uint16_t rgb565 = (p[0] << 8) | p[1];
-      #endif
+  // foreground (yellow) and background (black) colors
+  static RGB fgColor, bgColor;
+  fgColor = {255,150,0};
+  bgColor = {0,0,0};
 
-      // Read each of the sub-fields to extract rgb from the Gimp 2-byte data
-      uint8_t r5 = (rgb565 >> 11) & 0x1F;
-      uint8_t g6 = (rgb565 >> 5)  & 0x3F;
-      uint8_t b5 =  rgb565        & 0x1F;
+  // Use time to control the animation
+  uint32_t elapsed = millis();
 
-      // Expand 5/6-bit channels to full 8-bit range (0–255)
-      uint8_t r8 = (r5 << 3) | (r5 >> 2);
-      uint8_t g8 = (g6 << 2) | (g6 >> 4);
-      uint8_t b8 = (b5 << 3) | (b5 >> 2);
+  // What cycle are we in?
+  uint32_t cycle = elapsed / animatePeriod; 
+  static uint32_t lastCycle = 0;
 
-      // Now store the rgb (three bytes per row) data into the backbuffer.  In the rendering (by core-1), 
-      // we will add the start bytes, brightness, gamma, and stop bytes before DMA to the dotStars.
-      backBuffer[(row * COLUMNS * 3) + (col * 3)] = r8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+  RGB color;
+  uint8_t row, col;
+  float plusMinus;
 
-      // Advance to next row, same column
-      p += imageTable[imageToDisplayIndex]->width * 2;
+  // Draw the yellow ball
+  for (col = 0; col < COLUMNS; col++) {
+    for (row = 0; row < ROWS; row++) {
+      writePixel(row, col, fgColor);
     }
   }
+
+  // Draw the left eye (a circle with a notch)
+  drawCircle(30,15,4,bgColor);
+  drawTriangle({28,15}, {20,5}, {20,25}, fgColor);
+
+  // Draw the right eye
+  drawCircle(50,15,4,bgColor);
+  drawTriangle({52,15}, {60,5}, {60,25}, fgColor);
+
+  // Animate the mouth by drawing open/close based on the cycle we are in
+  
+  static bool open = false;
+  if(cycle != lastCycle) {
+    open = !open;
+    lastCycle = cycle;
+  }
+
+  if(open) {
+    // open mouth is an oval.  radiusA is the width, radiusB is the height
+    //drawOval(40, 28, 20, 7, bgColor);
+    drawOval(40, 28, 25, 8, bgColor);
+  } else {
+
+    // Draw the closed mouth (simple horizontal line)
+    //drawRect(20, 28, 60, 28, bgColor);
+    drawRect(15, 28, 65, 28, bgColor);
+  }
+}
+
+//#############################
+//  Spiral around the Sphere
+//#############################
+constexpr RGB spiralColors[] = {
+                {255,0,0},
+                {0,255,0},
+                {0,0,255},
+              };
+
+void fillBB_spiral(){
+
+  constexpr uint32_t spiralRevPeriod = 5000; //in mS 
+  constexpr uint8_t K = 1;  // Spiral twist factor
+  constexpr uint8_t numSpirals = 6;
+  constexpr uint8_t thickness = 3;  // How many pixels wide are the spirals
+  static uint8_t fg0ColorIndex = 0;
+  static uint8_t fg1ColorIndex = 1;
+  RGB bgColor = {0,0,0};
+  uint8_t colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
+
+  // phase tells us where in a revolution we currently are.  Use a fixed-point accumulator.  
+  // It always increments by one when we pass a period/COLUMNS point
+  // Using an accumulator fixes the integer quantization + wrap issues that my original 
+  // uint32_t phase = uint32_t(t * COLUMNS/spiralRevPeriod) % COLUMNS; method had.
+  // We need to accumulate all the fractional phase until we get to a whole column jump.
+  static uint32_t phase = 0;
+  static uint32_t rem = 0;      // remainder in "ms·columns"
+  static uint32_t lastT = 0;
+  
+  uint32_t now = millis();
+  uint32_t dt = now - lastT;
+  lastT = now;
+  
+  // accumulate fractional progress
+  rem += dt * COLUMNS;
+  
+  // extract whole columns
+  uint32_t step = rem / spiralRevPeriod;
+  rem %= spiralRevPeriod;
+  
+  // advance phase
+  phase = (phase + step) % COLUMNS;
+
+  // use cycle boundary (where phase = 0) as a place to change colors
+  if (phase == 0) {    
+    fg0ColorIndex = fg1ColorIndex;
+    fg1ColorIndex += 1;
+
+    if(fg1ColorIndex == colorArrLen) {
+       fg1ColorIndex = 0;
+    }
+  }
+
+  // Fill the background
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(row, col, bgColor);
+    }
+  }
+  drawSpiral(phase, K, numSpirals, thickness, spiralColors[fg0ColorIndex]);
+  drawSpiral(phase, -K, numSpirals, thickness, spiralColors[fg1ColorIndex]);
+
+}
+
+//#############################################################################
+// Functions for graphics primatives (circles, rectangles, triangles, etc.)
+//#############################################################################
+
+//###############################################################
+//  Draw spiral with spiral k-factor (-/+ for left/right twist), 
+// width,  number of spirals, color.  phase is the offset from 
+// col 0 so we can revolve the spirals.
+//###############################################################
+// Helper function to return column distance across 0-COLUMNS wrap boundary
+static inline int wrapDist(int a, int b) {
+    int d = a - b;
+    if (d >  COLUMNS / 2) d -= COLUMNS;
+    if (d < -(COLUMNS / 2)) d += COLUMNS;
+    return d;
+}
+void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, const struct RGB& color) {
+  static int pcount = 0;
+  int wD,wDF;
+  for (int phi = 0; phi < ROWS; ++phi) { 
+    int base = (K * phi + phase) % COLUMNS; 
+    for (int theta = 0; theta < COLUMNS; ++theta) { 
+      for (int i = 0; i < numSpirals; ++i) { 
+
+        // Distributes spirals evenly even when COLUMNS/numSpirals isn’t exact.
+        int center = (base + (i * COLUMNS) / numSpirals) % COLUMNS;
+
+        // When theta gets close enough to the center of the current row's spiral position, load the color into it
+        if (abs(wrapDist(center, theta)) <= thickness) {
+          writePixel(phi, theta, color); 
+          break; // don’t overdraw 
+        } 
+      } 
+    } 
+  }
+}
+
+
+//####################################################
+//  Draw filled circle into the backbuffer at a given 
+// center, with a given radius, and given color
+//####################################################
+void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& color) {
+  uint8_t plusMinus;
+  for (uint8_t col = centerX - radius; col <= centerX + radius; col++) {
+    plusMinus = sqrt(pow(radius,2) - pow((col - centerX),2));
+    for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
+      writePixel(row, col, color);
+    }
+  }
+}
+
+//###########################################################
+//  Draw filled oval into the backbuffer at a given 
+// center, with a given minior/major radius, and given color
+//###########################################################
+void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusA, uint8_t radiusB, const struct RGB& color) {
+  uint8_t plusMinus;
+  for (uint8_t col = centerX - radiusA; col <= centerX + radiusA; col++) {
+    plusMinus = (float(radiusB)/float(radiusA)) * sqrt(pow(float(radiusA),2.0) - pow((col - centerX),2));
+    for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
+      writePixel(row, col, color);
+    }
+  }
+}
+
+//##########################################################
+//  Draw filled rect with specified  ll/ur points and color
+//##########################################################
+void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct RGB& color) {
+  for (uint8_t col = llX; col <= urX; col++) {
+    for(uint8_t row = urY; row <= llY; row++) {
+      writePixel(row, col, color);
+    }
+  }
+}
+
+//##########################################################
+//  Draw triangle with three vertices specified and color
+//##########################################################
+// cross product to generate normal vectors for testing if a point lies within the triangle
+float cross(const Vec2& a, const Vec2& b, const Vec2& c) {
+  // Cross product of (b - a) x (c - a)
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+// test if point lies within the triangle
+bool pointInTriangle(const Vec2& p,
+                     const Vec2& v1,
+                     const Vec2& v2,
+                     const Vec2& v3) {
+    float d1 = cross(p, v1, v2);
+    float d2 = cross(p, v2, v3);
+    float d3 = cross(p, v3, v1);
+
+    bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+    // Inside or on an edge if all have the same sign (or zero)
+    return !(hasNeg && hasPos);
+}
+
+void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct RGB& color) {
+
+  // Only scan a rectangle as large as the extents of the triangle
+  uint8_t minX, maxX, minY, maxY;
+  minX=v1.x;
+  if(v2.x < minX) { minX=v2.x; }
+  if(v3.x < minX) { minX=v3.x; }
+  maxX=v1.x;
+  if(v2.x > maxX) { maxX=v2.x; }
+  if(v3.x > maxX) { maxX=v3.x; }
+
+  minY=v1.y;
+  if(v2.y < minY) { minY=v2.y; }
+  if(v3.y < minY) { minY=v3.y; }
+  maxY=v1.x;
+  if(v2.y > maxY) { maxY=v2.y; }
+  if(v3.y > maxY) { maxY=v3.y; }
+
+  Vec2 pt;
+  for (uint8_t col = minX; col <= maxX; col++) {
+    for(uint8_t row = minY; row <= maxY; row++) {
+      pt.x = col;
+      pt.y = row;
+      if(pointInTriangle(pt, v1, v2, v3)) {
+        writePixel(row, col, color);
+      }
+    }
+  }
+}
+
+//##############################################################
+//  Draw Arc with specified end points, radius, and given color
+//##############################################################
+void drawArc(const Vec2& p1, const Vec2& p2, const uint8_t radius, const struct RGB& color){
+}
+
+//##################################################
+//  Write pixel to backBuffer at a given location
+//  We use three bytes per pixel for RGB
+//##################################################
+void writePixel(uint8_t row, uint8_t col, const struct RGB& color) {
+      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
+      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
 }

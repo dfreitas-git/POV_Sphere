@@ -8,6 +8,8 @@
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
+    IMG_spiralWrap,
+    IMG_pacmanWrap,
     IMG_checkerWrap,
     IMG_hbands,
     IMG_paint,
@@ -42,6 +44,8 @@ extern void fillBB_vFade();
 extern void fillBB_paint();
 extern void fillBB_hBands();
 extern void fillBB_checker();
+extern void fillBB_pacman();
+extern void fillBB_spiral();
 extern const Image *imageTable[IMG_COUNT];
 
 static const struct {
@@ -2114,5 +2118,26 @@ const Image checkerWrap = {
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
     .functionPtr = fillBB_checker,
+};
+
+// Pacman
+const Image pacmanWrap = {
+    .name = "Pacman",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_pacman,
+};
+
+
+// Spiral
+const Image spiralWrap = {
+    .name = "Spiral",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_spiral,
 };
 
