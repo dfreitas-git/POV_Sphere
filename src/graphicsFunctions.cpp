@@ -605,7 +605,8 @@ void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, c
   // animate the mouth
   if(mouthOpen) {
     // open mouth is a wedge since we are looking at a side view
-    drawTriangle({float(centerX-12),float(centerY-7)}, {float(centerX-12),float(centerY+7)}, {float(centerX),float(centerY)}, bgColor);
+    //drawTriangle({float(centerX-12),float(centerY-7)}, {float(centerX-12),float(centerY+7)}, {float(centerX),float(centerY)}, bgColor);
+    drawTriangle({centerX-12,centerY-7}, {centerX-12,centerY+7}, {centerX,centerY}, bgColor);
   } else {
     // Draw the closed mouth (simple horizontal line)
     drawRect(centerX-11, centerY, centerX-2, centerY, bgColor);

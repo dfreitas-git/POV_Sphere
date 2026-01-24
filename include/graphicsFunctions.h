@@ -25,7 +25,7 @@ struct palette {
 
 // Struct to hold vertex point
 struct Vec2 {
-    float x, y;
+    int x, y;
 };
 
 void fillBB_spiral();
