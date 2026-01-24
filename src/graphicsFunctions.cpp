@@ -446,25 +446,28 @@ void fillBB_spiral(){
   // uint32_t phase = uint32_t(t * COLUMNS/spiralRevPeriod) % COLUMNS; method had.
   // We need to accumulate all the fractional phase until we get to a whole column jump.
   static uint32_t phase = 0;
-  static uint32_t rem = 0;      // remainder in "ms·columns"
+  static uint32_t remainder = 0;      // remainder in "ms·columns"
   static uint32_t lastT = 0;
   
+  static uint32_t lastColorSwitchTime = 0;
   uint32_t now = millis();
   uint32_t dt = now - lastT;
   lastT = now;
   
   // accumulate fractional progress
-  rem += dt * COLUMNS;
+  remainder += dt * COLUMNS;
   
   // extract whole columns
-  uint32_t step = rem / spiralRevPeriod;
-  rem %= spiralRevPeriod;
+  uint32_t step = remainder / spiralRevPeriod;
+  remainder %= spiralRevPeriod;
   
   // advance phase
-  phase = (phase + step) % COLUMNS;
+  //dlf Temporarily stop phase shifting (just use scroll mode) until I figure out phase bug.
+  //phase = (phase + step) % COLUMNS;
 
-  // use cycle boundary (where phase = 0) as a place to change colors
-  if (phase == 0) {    
+  // change color every rev cycle
+  if (now - lastColorSwitchTime >= spiralRevPeriod) {    
+    lastColorSwitchTime = now;
     fg0ColorIndex = fg1ColorIndex;
     fg1ColorIndex += 1;
 
