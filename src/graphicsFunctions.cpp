@@ -254,7 +254,7 @@ void fillBB_vFade() {
   const float periodMs = 3000.0f;  // one full fade cycle
 
   // animation speed.  1.0 Hz = one cycle every second
-  float omega = 2.0f * PI * 5.0f;     
+  float omega = 2.0f * PI * 1.0f;     
 
   // graphics are based on the actual time so frames are synced to the clock
   float t = millis();
@@ -277,7 +277,7 @@ void fillBB_vFade() {
     for (int row = 0; row < ROWS; row++) {
       float phi = (row / float(ROWS)) * PI - PI/2;
 
-      uint8_t bright = uint8_t((sin(theta * 12 + animatePhase) * 0.5f + 0.5f) * colorBright);
+      uint8_t bright = uint8_t((sin(theta * 6 + animatePhase) * 0.5f + 0.5f) * colorBright);
 
       uint8_t r8 = 0, g8 = 0, b8 = 0;
       switch (cycle % 3) {
@@ -369,10 +369,8 @@ void fillBB_pacman() {
   // How quickly we do framebuffer updates (in ms)
   uint16_t animatePeriod = 500;
 
-  // foreground (yellow) and background (black) colors
-  static RGB fgColor, bgColor;
-  fgColor = {255,150,0};
-  bgColor = {0,0,0};
+  // Get the colors
+  static palette c;
 
   // Use time to control the animation
   uint32_t elapsed = millis();
@@ -381,24 +379,20 @@ void fillBB_pacman() {
   uint32_t cycle = elapsed / animatePeriod; 
   static uint32_t lastCycle = 0;
 
-  RGB color;
-  uint8_t row, col;
-  float plusMinus;
-
   // Draw the yellow ball
-  for (col = 0; col < COLUMNS; col++) {
-    for (row = 0; row < ROWS; row++) {
-      writePixel(row, col, fgColor);
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(col, row, c.yellow);
     }
   }
 
   // Draw the left eye (a circle with a notch)
-  drawCircle(30,15,4,bgColor);
-  drawTriangle({28,15}, {20,5}, {20,25}, fgColor);
+  drawCircle(30,15,4,c.black);
+  drawTriangle({28,15}, {20,5}, {20,25}, c.yellow);
 
   // Draw the right eye
-  drawCircle(50,15,4,bgColor);
-  drawTriangle({52,15}, {60,5}, {60,25}, fgColor);
+  drawCircle(50,15,4,c.black);
+  drawTriangle({52,15}, {60,5}, {60,25}, c.yellow);
 
   // Animate the mouth by drawing open/close based on the cycle we are in
   
@@ -410,15 +404,88 @@ void fillBB_pacman() {
 
   if(open) {
     // open mouth is an oval.  radiusA is the width, radiusB is the height
-    //drawOval(40, 28, 20, 7, bgColor);
-    drawOval(40, 28, 25, 8, bgColor);
+    drawOval(40, 28, 25, 8, c.black);
   } else {
 
     // Draw the closed mouth (simple horizontal line)
-    //drawRect(20, 28, 60, 28, bgColor);
-    drawRect(15, 28, 65, 28, bgColor);
+    drawRect(15, 28, 65, 28, c.black);
   }
 }
+
+//#########################
+//  Pacman chasing ghosts
+//#########################
+void fillBB_pacman1() {
+
+  // How quickly we do framebuffer updates (in ms)
+  uint16_t animatePeriod = 500;
+
+  // Get the colors
+  static palette c;
+
+  // Use time to control the animation
+  uint32_t elapsed = millis();
+
+  // What cycle are we in?
+  uint32_t cycle = elapsed / animatePeriod; 
+  static uint32_t lastCycle = 0;
+
+  // Fill the black background
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(col, row, c.black);
+    }
+  }
+  // Animate the mouth by drawing open/close based on the cycle we are in
+  static bool mouthOpen = false;
+  static bool jumpUp = false;
+  if(cycle != lastCycle) {
+    mouthOpen = !mouthOpen;
+    jumpUp = !jumpUp;
+    lastCycle = cycle;
+  }
+  // Draw Pacman
+  drawPacman(41,23,c.yellow,c.black,mouthOpen);
+
+  // Draw the ghosts
+  drawGhost(65, 22, c.red, c.black, c.white,jumpUp);
+  drawGhost(85, 22, c.lightBlue, c.black, c.white,!jumpUp);
+  drawGhost(105, 22, c.orange, c.black, c.white,jumpUp);
+
+  // Draw the Pacman food dots
+  drawCircle(5, 24, 2, c.yellow);
+  drawCircle(15, 24, 2, c.yellow);
+  drawCircle(25, 24, 2, c.yellow);
+
+}
+
+
+//#########################
+//  Expanding Diamonds
+//#########################
+void fillBB_diamond() {
+
+  // How quickly we do framebuffer updates (in ms)
+  uint16_t animatePeriod = 500;
+
+  // Get the colors
+  static palette c;
+
+  // Use time to control the animation
+  uint32_t elapsed = millis();
+
+  // What cycle are we in?
+  uint32_t cycle = elapsed / animatePeriod; 
+  static uint32_t lastCycle = 0;
+
+  // Fill the black background
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(col, row, c.black);
+    }
+  }
+}
+
 
 //#############################
 //  Spiral around the Sphere
@@ -479,7 +546,7 @@ void fillBB_spiral(){
   // Fill the background
   for (uint8_t col = 0; col < COLUMNS; col++) {
     for (uint8_t row = 0; row < ROWS; row++) {
-      writePixel(row, col, bgColor);
+      writePixel(col, row, bgColor);
     }
   }
   drawSpiral(phase, K, numSpirals, thickness, spiralColors[fg0ColorIndex]);
@@ -516,7 +583,7 @@ void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, co
 
         // When theta gets close enough to the center of the current row's spiral position, load the color into it
         if (abs(wrapDist(center, theta)) <= thickness) {
-          writePixel(phi, theta, color); 
+          writePixel(theta,phi, color); 
           break; // don’t overdraw 
         } 
       } 
@@ -524,6 +591,46 @@ void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, co
   }
 }
 
+//######################
+//  Draw Pacman 
+//######################
+void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen) {
+
+  // head
+  drawCircle(centerX,centerY,11,bodyColor);
+
+  // Draw Pacman's eye
+  drawCircle(centerX-2,centerY-6,2,bgColor);
+
+  // animate the mouth
+  if(mouthOpen) {
+    // open mouth is a wedge since we are looking at a side view
+    drawTriangle({float(centerX-12),float(centerY-7)}, {float(centerX-12),float(centerY+7)}, {float(centerX),float(centerY)}, bgColor);
+  } else {
+    // Draw the closed mouth (simple horizontal line)
+    drawRect(centerX-11, centerY, centerX-2, centerY, bgColor);
+  }
+}
+
+//######################
+//  Draw Pacman Ghost
+//######################
+void drawGhost(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool jumpUp) {
+  uint8_t dY;
+  if(jumpUp) {
+    dY = 3;
+  } else {
+    dY = 0;
+  }
+  drawCircle(centerX,centerY+dY, 5, bodyColor);  // Head
+  drawRect(centerX-5, centerY+6+dY, centerX+5, centerY+dY, bodyColor); //body
+  drawCircle(centerX-2, centerY+dY, 1, eyeColor);  //left eye
+  drawCircle(centerX+2, centerY+dY, 1, eyeColor);  //right eye
+  drawTriangle({centerX-2,centerY+5+dY},{centerX-3,centerY+6+dY},{centerX-1,centerY+6+dY},bgColor); //right bottom cutout
+  drawTriangle({centerX+2,centerY+5+dY},{centerX+3,centerY+6+dY},{centerX+1,centerY+6+dY},bgColor); //left bottom cutout
+  writePixel(centerX-2, centerY+dY, bgColor);  //left iris
+  writePixel(centerX+2, centerY+dY, bgColor);  //right iris
+}
 
 //####################################################
 //  Draw filled circle into the backbuffer at a given 
@@ -534,7 +641,7 @@ void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct R
   for (uint8_t col = centerX - radius; col <= centerX + radius; col++) {
     plusMinus = sqrt(pow(radius,2) - pow((col - centerX),2));
     for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
-      writePixel(row, col, color);
+      writePixel(col, row, color);
     }
   }
 }
@@ -548,7 +655,21 @@ void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusA, uint8_t radiusB
   for (uint8_t col = centerX - radiusA; col <= centerX + radiusA; col++) {
     plusMinus = (float(radiusB)/float(radiusA)) * sqrt(pow(float(radiusA),2.0) - pow((col - centerX),2));
     for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
-      writePixel(row, col, color);
+      writePixel(col, row, color);
+    }
+  }
+}
+
+//###########################################################
+//  Draw filled diamond to the backbuffer at a given 
+// center, with a given minior/major extents and given color
+//###########################################################
+void drawDiamond(uint8_t centerX, uint8_t centerY, uint8_t extentX, uint8_t extentY, const struct RGB& color) {
+  uint8_t plusMinus;
+  for (uint8_t col = centerX - extentX; col <= centerX + extentX; col++) {
+    //plusMinus =  y=mx+b; 
+    for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
+      writePixel(col, row, color);
     }
   }
 }
@@ -559,7 +680,7 @@ void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusA, uint8_t radiusB
 void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct RGB& color) {
   for (uint8_t col = llX; col <= urX; col++) {
     for(uint8_t row = urY; row <= llY; row++) {
-      writePixel(row, col, color);
+      writePixel(col, row, color);
     }
   }
 }
@@ -613,23 +734,17 @@ void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct R
       pt.x = col;
       pt.y = row;
       if(pointInTriangle(pt, v1, v2, v3)) {
-        writePixel(row, col, color);
+        writePixel(col, row, color);
       }
     }
   }
-}
-
-//##############################################################
-//  Draw Arc with specified end points, radius, and given color
-//##############################################################
-void drawArc(const Vec2& p1, const Vec2& p2, const uint8_t radius, const struct RGB& color){
 }
 
 //##################################################
 //  Write pixel to backBuffer at a given location
 //  We use three bytes per pixel for RGB
 //##################################################
-void writePixel(uint8_t row, uint8_t col, const struct RGB& color) {
+void writePixel(uint8_t col, uint8_t row, const struct RGB& color) {
       backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;

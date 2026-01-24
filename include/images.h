@@ -8,8 +8,10 @@
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
+    IMG_diamondWrap,
     IMG_spiralWrap,
     IMG_pacmanWrap,
+    IMG_pacman1Wrap,
     IMG_checkerWrap,
     IMG_hbands,
     IMG_paint,
@@ -45,7 +47,9 @@ extern void fillBB_paint();
 extern void fillBB_hBands();
 extern void fillBB_checker();
 extern void fillBB_pacman();
+extern void fillBB_pacman1();
 extern void fillBB_spiral();
+extern void fillBB_diamond();
 extern const Image *imageTable[IMG_COUNT];
 
 static const struct {
@@ -2120,7 +2124,7 @@ const Image checkerWrap = {
     .functionPtr = fillBB_checker,
 };
 
-// Pacman
+// Pacman chomping
 const Image pacmanWrap = {
     .name = "Pacman",
     .width = 120,
@@ -2128,6 +2132,16 @@ const Image pacmanWrap = {
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
     .functionPtr = fillBB_pacman,
+};
+
+// Pacman chasing ghosts
+const Image pacman1Wrap = {
+    .name = "Pacman1",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_pacman1,
 };
 
 
@@ -2139,5 +2153,15 @@ const Image spiralWrap = {
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
     .functionPtr = fillBB_spiral,
+};
+
+// Diamond
+const Image diamondWrap = {
+    .name = "Diamond",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_diamond,
 };
 

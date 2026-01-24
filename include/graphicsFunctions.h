@@ -10,33 +10,44 @@
 // Struct to hold the rgb color fields
 struct RGB { uint8_t r, g, b; };
 
+// Struct to hold the color definitions
+struct palette { 
+    RGB white = {255,255,255};
+    RGB red   = {255,0,0};
+    RGB green = {0,255,0};
+    RGB blue  = {0,0,255};
+    RGB yellow = {255,150,0};
+    RGB black  = {0,0,0};
+    RGB orange = {255,159,0};
+    RGB pink   = {255,192,203}; 
+    RGB lightBlue = {0,0,128};
+};
+
 // Struct to hold vertex point
 struct Vec2 {
     float x, y;
 };
 
 void fillBB_spiral();
-void writePixel(uint8_t row, uint8_t col, const struct RGB& color);
+void writePixel(uint8_t col, uint8_t row, const struct RGB& color);
 void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, const struct RGB& color);
 void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct RGB& color);
 void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& color);
 void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusA, uint8_t radiusB, const struct RGB& color);
 void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct RGB& color);
-void drawArc(const Vec2& p1, const Vec2& p2, const uint8_t radius, const struct RGB& color);
 float cross(const Vec2& a, const Vec2& b, const Vec2& c);
+void drawGhost(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool floatUp);
+void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen);
 void fillBB_pacman();
+void fillBB_pacman1();
 void fillBB_checker();
 void fillBB_fade();
 void fillBB_paint();
 void fillBB_hBands();
-void fillBB_hFade();
-void fillBB_vFade();
 void fillBB_image();
-void fillBB_fade();
-void fillBB_paint();
-void fillBB_hBands();
 void fillBB_hFade();
 void fillBB_vFade();
+void fillBB_diamond();
 void fillBB_image();
 
 // Sine for each column via look-up-table for speed

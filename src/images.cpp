@@ -4,17 +4,19 @@
 // This defines the image functions that will be available to the display
 // display menu item in the user UI
 const Image *imageTable[IMG_COUNT] = {
-    &spiralWrap,
-    &pacmanWrap,
+    &diamondWrap,
     &testDotWrap,
     &testLWrap,
-    &helloWorldWrap,
     &fadeWrap,
-    &paintWrap,
-    &hBandsWrap,
-    &hFadeWrap,
     &vFadeWrap,
+    &hFadeWrap,
+    &hBandsWrap,
+    &paintWrap,
     &checkerWrap,
-    &worldMapWrap,
+    &spiralWrap,
+    &pacmanWrap,
+    &pacman1Wrap,
+    &helloWorldWrap,
     &saffronWrap,
+    &worldMapWrap,
 };
