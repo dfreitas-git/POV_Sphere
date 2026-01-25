@@ -456,7 +456,6 @@ void fillBB_pacman1() {
   drawCircle(5, 24, 2, c.yellow);
   drawCircle(15, 24, 2, c.yellow);
   drawCircle(25, 24, 2, c.yellow);
-
 }
 
 
@@ -466,7 +465,9 @@ void fillBB_pacman1() {
 void fillBB_diamond() {
 
   // How quickly we do framebuffer updates (in ms)
-  uint16_t animatePeriod = 500;
+  uint16_t animatePeriod = 50;
+  constexpr uint8_t borderWidth = 5;
+  static int animateCount = borderWidth;
 
   // Get the colors
   static palette c;
@@ -478,27 +479,94 @@ void fillBB_diamond() {
   uint32_t cycle = elapsed / animatePeriod; 
   static uint32_t lastCycle = 0;
 
-  // Fill the black background
+  // Fill the background
   for (uint8_t col = 0; col < COLUMNS; col++) {
     for (uint8_t row = 0; row < ROWS; row++) {
       writePixel(col, row, c.black);
     }
   }
+
+  // Increment the animate count when we see a cycle transition
+  static int animateIncrement = 1;
+  if( cycle != lastCycle){
+    lastCycle = cycle;
+    if(animateCount >= 20) {
+      animateIncrement = -1;
+    }
+    if(animateCount <= borderWidth) {
+      animateIncrement = 1;
+    }
+    animateCount += animateIncrement;
+  }
+
+  drawDiamond(20, 22, animateCount, animateCount, c.yellow);
+  drawDiamond(20, 22, animateCount-borderWidth, animateCount-borderWidth, c.purple);
+
+  drawDiamond(60, 22, animateCount, animateCount, c.blue);
+  drawDiamond(60, 22, animateCount-borderWidth, animateCount-borderWidth, c.yellow);
+
+  drawDiamond(100, 22, animateCount, animateCount, c.purple);
+  drawDiamond(100, 22, animateCount-borderWidth, animateCount-borderWidth, c.yellow);
 }
 
+//#########################
+//  Expanding Flower
+//#########################
+void fillBB_flower() {
 
-//#############################
-//  Spiral around the Sphere
-//#############################
-constexpr RGB spiralColors[] = {
-                {255,0,0},
-                {0,255,0},
-                {0,0,255},
-              };
+  // How quickly we do framebuffer updates (in ms)
+  uint16_t animatePeriod = 50;
+  static int animateCount = 1;
 
-void fillBB_spiral(){
+  // Get the colors
+  static palette c;
 
-  constexpr uint32_t spiralRevPeriod = 5000; //in mS 
+  // Use time to control the animation
+  uint32_t elapsed = millis();
+
+  // What cycle are we in?
+  uint32_t cycle = elapsed / animatePeriod; 
+  static uint32_t lastCycle = 0;
+
+  // Fill the background
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(col, row, c.black);
+    }
+  }
+
+  // Increment the animate count when we see a cycle transition
+  static int animateIncrement = 1;
+  if( cycle != lastCycle){
+    lastCycle = cycle;
+    if(animateCount >= 47) {
+      animateIncrement = -1;
+    }
+    if(animateCount <= 1) {
+      animateIncrement = 1;
+    }
+    animateCount += animateIncrement;
+  }
+
+  // From top to bottome
+  drawTriangle({0,0},{20,animateCount},{39,0}, c.red);
+  drawTriangle({40,0},{60,animateCount},{79,0}, c.blue);
+  drawTriangle({80,0},{100,animateCount},{119,0}, c.green);
+
+  // From bottom to top
+  drawTriangle({0,47},{0,47-animateCount},{19,47}, c.blue);
+  drawTriangle({20,47},{40,47-animateCount},{59,47}, c.green);
+  drawTriangle({60,47},{80,47-animateCount},{99,47}, c.red);
+  drawTriangle({100,47},{119,47-animateCount},{119,47}, c.blue);
+
+}
+
+//#######################################
+//  Right twist Spiral around the Sphere
+//#######################################
+void fillBB_spiralR(){
+
+  constexpr uint32_t spiralRevPeriod = 3000; //in mS 
   constexpr uint8_t K = 1;  // Spiral twist factor
   constexpr uint8_t numSpirals = 6;
   constexpr uint8_t thickness = 3;  // How many pixels wide are the spirals
@@ -507,30 +575,87 @@ void fillBB_spiral(){
   RGB bgColor = {0,0,0};
   uint8_t colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
 
-  // phase tells us where in a revolution we currently are.  Use a fixed-point accumulator.  
-  // It always increments by one when we pass a period/COLUMNS point
-  // Using an accumulator fixes the integer quantization + wrap issues that my original 
-  // uint32_t phase = uint32_t(t * COLUMNS/spiralRevPeriod) % COLUMNS; method had.
-  // We need to accumulate all the fractional phase until we get to a whole column jump.
   static uint32_t phase = 0;
-  static uint32_t remainder = 0;      // remainder in "ms·columns"
-  static uint32_t lastT = 0;
-  
   static uint32_t lastColorSwitchTime = 0;
   uint32_t now = millis();
-  uint32_t dt = now - lastT;
-  lastT = now;
-  
-  // accumulate fractional progress
-  remainder += dt * COLUMNS;
-  
-  // extract whole columns
-  uint32_t step = remainder / spiralRevPeriod;
-  remainder %= spiralRevPeriod;
-  
-  // advance phase
-  //dlf Temporarily stop phase shifting (just use scroll mode) until I figure out phase bug.
-  //phase = (phase + step) % COLUMNS;
+
+  // change color every rev cycle
+  if (now - lastColorSwitchTime >= spiralRevPeriod) {    
+    lastColorSwitchTime = now;
+    fg0ColorIndex = fg1ColorIndex;
+    fg1ColorIndex += 1;
+
+    if(fg1ColorIndex == colorArrLen) {
+       fg1ColorIndex = 0;
+    }
+  }
+
+  // Fill the background
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(col, row, bgColor);
+    }
+  }
+  drawSpiral(phase, K, numSpirals, thickness, spiralColors[fg0ColorIndex]);
+
+}
+
+//#######################################
+//  Left twist Spiral around the Sphere
+//#######################################
+void fillBB_spiralL(){
+
+  constexpr uint32_t spiralRevPeriod = 3000; //in mS 
+  constexpr uint8_t K = 1;  // Spiral twist factor
+  constexpr uint8_t numSpirals = 6;
+  constexpr uint8_t thickness = 3;  // How many pixels wide are the spirals
+  static uint8_t fg0ColorIndex = 0;
+  static uint8_t fg1ColorIndex = 1;
+  RGB bgColor = {0,0,0};
+  uint8_t colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
+
+  static uint32_t phase = 0;
+  static uint32_t lastColorSwitchTime = 0;
+  uint32_t now = millis();
+
+  // change color every rev cycle
+  if (now - lastColorSwitchTime >= spiralRevPeriod) {    
+    lastColorSwitchTime = now;
+    fg0ColorIndex = fg1ColorIndex;
+    fg1ColorIndex += 1;
+
+    if(fg1ColorIndex == colorArrLen) {
+       fg1ColorIndex = 0;
+    }
+  }
+
+  // Fill the background
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(col, row, bgColor);
+    }
+  }
+  drawSpiral(phase, -K, numSpirals, thickness, spiralColors[fg0ColorIndex]);
+
+}
+
+//##################################
+//  Double Spiral around the Sphere
+//##################################
+void fillBB_spiralD(){
+
+  constexpr uint32_t spiralRevPeriod = 3000; //in mS 
+  constexpr uint8_t K = 1;  // Spiral twist factor
+  constexpr uint8_t numSpirals = 6;
+  constexpr uint8_t thickness = 3;  // How many pixels wide are the spirals
+  static uint8_t fg0ColorIndex = 0;
+  static uint8_t fg1ColorIndex = 1;
+  RGB bgColor = {0,0,0};
+  uint8_t colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
+
+  static uint32_t phase = 0;
+  static uint32_t lastColorSwitchTime = 0;
+  uint32_t now = millis();
 
   // change color every rev cycle
   if (now - lastColorSwitchTime >= spiralRevPeriod) {    
@@ -666,9 +791,24 @@ void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusA, uint8_t radiusB
 // center, with a given minior/major extents and given color
 //###########################################################
 void drawDiamond(uint8_t centerX, uint8_t centerY, uint8_t extentX, uint8_t extentY, const struct RGB& color) {
-  uint8_t plusMinus;
-  for (uint8_t col = centerX - extentX; col <= centerX + extentX; col++) {
-    //plusMinus =  y=mx+b; 
+  int plusMinus;
+  uint8_t leftX = centerX - extentX;
+  uint8_t leftY = centerY;
+  uint8_t rightX = centerX + extentX;
+  uint8_t rightY = centerY;
+  uint8_t topX = centerX;
+  uint8_t topY = centerY - extentY;
+
+  // Draw the left half of the diamond with the positive y=mx (remember the "top" is row-0)
+  for (uint8_t col = leftX; col <= centerX; col++) {
+    plusMinus = (float(leftY-topY)/float(topX-leftX)) * (col-leftX);   // Offset X to run from 0 to centerX
+    for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
+      writePixel(col, row, color);
+    }
+  }
+  // Draw the right half of the diamond with the negative y=mx
+  for (uint8_t col = topX; col <= rightX; col++) {
+    plusMinus = (float(rightY-topY)/float(rightX-topX)) * (rightX-col);   // Offset X to run rightX to 0
     for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
       writePixel(col, row, color);
     }

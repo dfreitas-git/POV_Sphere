@@ -8,8 +8,11 @@
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
+    IMG_flowerWrap,
     IMG_diamondWrap,
-    IMG_spiralWrap,
+    IMG_spiralLWrap,
+    IMG_spiralRWrap,
+    IMG_spiralDWrap,
     IMG_pacmanWrap,
     IMG_pacman1Wrap,
     IMG_checkerWrap,
@@ -48,8 +51,11 @@ extern void fillBB_hBands();
 extern void fillBB_checker();
 extern void fillBB_pacman();
 extern void fillBB_pacman1();
-extern void fillBB_spiral();
+extern void fillBB_spiralR();
+extern void fillBB_spiralL();
+extern void fillBB_spiralD();
 extern void fillBB_diamond();
+extern void fillBB_flower();
 extern const Image *imageTable[IMG_COUNT];
 
 static const struct {
@@ -2144,15 +2150,34 @@ const Image pacman1Wrap = {
     .functionPtr = fillBB_pacman1,
 };
 
-
-// Spiral
-const Image spiralWrap = {
-    .name = "Spiral",
+// SpiralR
+const Image spiralRWrap = {
+    .name = "SpiralR",
     .width = 120,
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_spiral,
+    .functionPtr = fillBB_spiralR,
+};
+
+// SpiralL
+const Image spiralLWrap = {
+    .name = "SpiralL",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_spiralL,
+};
+
+// Spiral Double
+const Image spiralDWrap = {
+    .name = "SpiralD",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_spiralD,
 };
 
 // Diamond
@@ -2165,3 +2190,12 @@ const Image diamondWrap = {
     .functionPtr = fillBB_diamond,
 };
 
+// Flower
+const Image flowerWrap = {
+    .name = "Flower",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_flower,
+};
