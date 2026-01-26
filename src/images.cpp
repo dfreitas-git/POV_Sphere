@@ -20,6 +20,7 @@ const Image *imageTable[IMG_COUNT] = {
     &diamondWrap,
     &pacmanWrap,
     &pacman1Wrap,
+    &eyeballWrap,
     &saffronWrap,
     &worldMapWrap,
 };

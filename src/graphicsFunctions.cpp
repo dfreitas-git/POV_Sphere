@@ -449,7 +449,7 @@ void fillBB_pacman1() {
 
   // Draw the ghosts
   drawGhost(65, 22, c.red, c.black, c.white,jumpUp);
-  drawGhost(85, 22, c.lightBlue, c.black, c.white,!jumpUp);
+  drawGhost(85, 22, c.blue, c.black, c.white,!jumpUp);
   drawGhost(105, 22, c.orange, c.black, c.white,jumpUp);
 
   // Draw the Pacman food dots
@@ -569,7 +569,7 @@ void fillBB_spiralR(){
   constexpr uint32_t spiralRevPeriod = 3000; //in mS 
   constexpr uint8_t K = 1;  // Spiral twist factor
   constexpr uint8_t numSpirals = 6;
-  constexpr uint8_t thickness = 3;  // How many pixels wide are the spirals
+  constexpr uint8_t thickness = 8;  // How many pixels wide are the spirals
   static uint8_t fg0ColorIndex = 0;
   static uint8_t fg1ColorIndex = 1;
   RGB bgColor = {0,0,0};
@@ -607,7 +607,7 @@ void fillBB_spiralL(){
 
   constexpr uint32_t spiralRevPeriod = 3000; //in mS 
   constexpr uint8_t K = 1;  // Spiral twist factor
-  constexpr uint8_t numSpirals = 6;
+  constexpr uint8_t numSpirals = 8;
   constexpr uint8_t thickness = 3;  // How many pixels wide are the spirals
   static uint8_t fg0ColorIndex = 0;
   static uint8_t fg1ColorIndex = 1;
@@ -678,6 +678,84 @@ void fillBB_spiralD(){
   drawSpiral(phase, -K, numSpirals, thickness, spiralColors[fg1ColorIndex]);
 
 }
+
+//#############################
+//  Animated blinking eyeball
+//#############################
+void fillBB_eyeball() {
+
+  // How quickly we do framebuffer updates (in ms)
+  constexpr uint16_t animatePeriod = 1000;
+  constexpr uint16_t blinkPeriod = 5;  // how fast to blink
+  constexpr uint8_t ANIMATE_CYCLES_UNTIL_TRIGTGER = 1;  // how often to blink
+  static int16_t blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGTGER;  
+  static uint8_t blinkToRow = 0;  // How far down the blink is
+  static uint8_t whichEyeToBlink = 0;
+
+  // Get the colors
+  static palette c;
+
+  // Use time to control the animation
+  uint32_t elapsed = millis();
+
+  // What cycle are we in?
+  uint32_t cycle = elapsed / animatePeriod; 
+  uint32_t blinkCycle = elapsed / blinkPeriod; 
+  static uint32_t lastCycle = 0;
+  static uint32_t lastBlinkCycle = 0;
+
+  // Fill the black background
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(col, row, c.black);
+    }
+  }
+  // Animate the eyeball by offsetting the iris/pupil based on the cycle we are in
+  static EYEBALL_MOVE position[5] = {CENTER, LEFT, RIGHT, UP, DOWN};
+  static uint8_t posIndex = 0;
+  if(cycle != lastCycle) {
+    posIndex = uint8_t(random(4));
+    lastCycle = cycle;
+    blinkTrigger--;  // count down until time to blink
+    if(blinkTrigger < 0) {
+      lastBlinkCycle = blinkCycle;
+    }
+  }
+
+  // What to do when the blink trigger is active
+  if(blinkTrigger < 0) {
+    if(blinkCycle != lastBlinkCycle) {
+      lastBlinkCycle = blinkCycle;
+      blinkToRow+=4;
+      if(blinkToRow >= 40) {
+        whichEyeToBlink = uint8_t(random(3));
+        blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGTGER; 
+        blinkToRow = 0;
+      }
+    }
+  }
+  // Draw Eyeball
+  drawEyeball(20, 22, 14, c.mediumblue, c.black, c.mediumgray, position[posIndex] );
+  drawEyeball(60, 22, 14, c.olivegreen, c.black, c.mediumgray, position[posIndex] );
+  drawEyeball(100, 22, 14, c.brown, c.black, c.mediumgray, position[posIndex] );
+
+  if(blinkTrigger < 0) {
+    // Mask the eyeball from the top down in flesh tone (like an eyelid)
+    for(uint8_t row = 0; row < blinkToRow; row+=4) {
+      //for (uint8_t col = 0; col < COLUMNS; col++) {
+      //  writePixel(col, row, c.black);
+      //}
+      if(whichEyeToBlink == 0) {
+        drawRect(6,blinkToRow,34,0,c.black);
+      } else if(whichEyeToBlink == 1) {
+        drawRect(46,blinkToRow,74,0,c.black);
+      } else {
+        drawRect(86,blinkToRow,114,0,c.black);
+      }
+    }
+  }
+}
+
 
 //#############################################################################
 // Functions for graphics primatives (circles, rectangles, triangles, etc.)
@@ -756,6 +834,24 @@ void drawGhost(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, co
   drawTriangle({centerX+2,centerY+5+dY},{centerX+3,centerY+6+dY},{centerX+1,centerY+6+dY},bgColor); //left bottom cutout
   writePixel(centerX-2, centerY+dY, bgColor);  //left iris
   writePixel(centerX+2, centerY+dY, bgColor);  //right iris
+}
+
+//########################################
+//  Draw Eyeball
+// "move" uses an enum CENTER/LEFT/RIGHT/UP/DOWN 
+//########################################
+void drawEyeball(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, uint8_t move ) {
+
+  int8_t dX,dY;
+  if(move == CENTER) { dX=0; dY = 0;}
+  if(move == LEFT) { dX=-5; dY = 0;}
+  if(move == RIGHT) {dX=5; dY = 0;}
+  if(move == UP) {dX=0; dY = -5;}
+  if(move == DOWN) {dX=0; dY = 5;}
+
+  drawCircle(centerX,centerY, radius, fgColor);  // White of the eye
+  drawCircle(centerX+dX, centerY+dY, radius/2, eyeColor);  //iris
+  drawCircle(centerX+dX, centerY+dY, radius/4, bgColor);   //pupil
 }
 
 //####################################################

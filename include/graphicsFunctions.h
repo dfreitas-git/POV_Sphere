@@ -10,20 +10,33 @@
 // Struct to hold the rgb color fields
 struct RGB { uint8_t r, g, b; };
 
+// eyeball movement enum
+enum EYEBALL_MOVE { LEFT, RIGHT, UP, DOWN, CENTER };
+
 // Struct to hold the color definitions
 struct palette { 
     RGB white = {255,255,255};
+    RGB gray  = {128,128,128};
+    RGB mediumgray = {96,96,96};
+    RGB darkgray  = {64,64,64};
     RGB red   = {255,0,0};
+    RGB meduimred   = {128,0,0};
+    RGB darkred   = {64,0,0};
     RGB green = {0,255,0};
+    RGB mediumgreen = {0,128,0};
+    RGB darkgreen = {0,64,0};
+    RGB limegreen = {64,102,0};
+    RGB olivegreen = {64,80,0};
     RGB blue  = {0,0,255};
+    RGB mediumblue  = {0,0,128};
+    RGB darkblue  = {0,0,64};
     RGB yellow = {255,150,0};
-    RGB black  = {0,0,0};
     RGB orange = {255,159,0};
     RGB pink   = {255,192,203}; 
-    RGB lightBlue = {0,0,128};
     RGB purple = {128,0,128};
+    RGB brown  = {102,51,64};
+    RGB black  = {0,0,0};
 };
-
 
 constexpr RGB spiralColors[] = {
                 {255,0,0},
@@ -36,9 +49,6 @@ struct Vec2 {
     int x, y;
 };
 
-void fillBB_spiralR();
-void fillBB_spiralL();
-void fillBB_spiralD();
 void writePixel(uint8_t col, uint8_t row, const struct RGB& color);
 void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, const struct RGB& color);
 void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct RGB& color);
@@ -49,6 +59,7 @@ void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct R
 float cross(const Vec2& a, const Vec2& b, const Vec2& c);
 void drawGhost(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool floatUp);
 void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen);
+void drawEyeball(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, uint8_t move );
 void fillBB_pacman();
 void fillBB_pacman1();
 void fillBB_checker();
@@ -59,7 +70,12 @@ void fillBB_image();
 void fillBB_hFade();
 void fillBB_vFade();
 void fillBB_diamond();
+void fillBB_spiralR();
+void fillBB_spiralL();
+void fillBB_spiralD();
+void fillBB_eyeball();
 void fillBB_image();
+void fillBB_eyeball();
 
 // Sine for each column via look-up-table for speed
 constexpr float sineLUT[COLUMNS] = {
