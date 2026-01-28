@@ -403,7 +403,7 @@ void fillBB_pacman() {
   }
 
   if(open) {
-    // open mouth is an oval.  radiusA is the width, radiusB is the height
+    // open mouth is an oval.  radiusX is the width, radiusY is the height
     drawOval(40, 28, 25, 8, c.black);
   } else {
 
@@ -756,6 +756,126 @@ void fillBB_eyeball() {
   }
 }
 
+//#############################
+//  Animated Marshmallow Roast
+//#############################
+void fillBB_pinecrest() {
+
+  // Get the colors
+  static palette c;
+  RGB flames[] = {c.red,c.yellow};
+
+  // Use time to control the animation
+  uint32_t now = millis();
+  static uint32_t lastTick = 0;
+  static uint32_t animationCount = 0;
+
+  // Base animation clock (fastest tick)
+  if (now - lastTick >= 50) {
+      uint32_t ticks = (now - lastTick) / 50;
+      animationCount += ticks;
+      lastTick += ticks * 50;
+  }
+
+  // Fill the background
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+    for (uint8_t row = 0; row < ROWS; row++) {
+      writePixel(col, row, c.black);
+    }
+  }
+
+  // roasting stick
+  drawLine(63,22,90,29,1,c.darkgray);  
+
+  // Marshmallow starts out square, then melts and drops into the fire
+  static uint8_t mmCx;
+  static uint8_t mmCy;
+  static int rotate;
+  static int halfsize;
+
+  if(animationCount < 100) {
+    mmCx = 61; mmCy = 20; rotate= 0; halfsize= 3;
+  } else if(animationCount >= 100 && animationCount < 110) {
+    mmCx = 61; mmCy = 21; rotate= -5; halfsize= 3;
+  } else if(animationCount >= 110 && animationCount < 120) {
+    mmCx = 61; mmCy = 21; rotate= -10; halfsize= 3;
+  } else if(animationCount >= 120 && animationCount < 130) {
+    mmCx = 61; mmCy = 21; rotate= -14; halfsize= 3;
+  } else if(animationCount >= 130 && animationCount < 140) {
+    mmCx = 61; mmCy = 22; rotate= -18; halfsize= 3;
+  } else if(animationCount >= 140 && animationCount < 150) {
+    mmCx = 61; mmCy = 22; rotate= -25; halfsize= 3;
+  } else if(animationCount >= 150 && animationCount < 160) {
+    mmCx = 61; mmCy = 23; rotate= -25; halfsize= 3;
+  } else if(animationCount >= 160 && animationCount < 170) {
+    mmCx = 61; mmCy = 23; rotate= -25; halfsize= 3;
+  } else if(animationCount >= 170 && animationCount < 180) {
+    mmCx = 61; mmCy = 23; rotate= -25; halfsize= 3;
+  } else if(animationCount >= 180 && animationCount < 190) {
+    mmCx = 61; mmCy = 24; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 190 && animationCount < 201) {
+    mmCx = 61; mmCy = 24; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 201 && animationCount < 206) {
+    mmCx = 61; mmCy = 24; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 206 && animationCount < 211) {
+    mmCx = 61; mmCy = 25; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 211 && animationCount < 216) {
+    mmCx = 61; mmCy = 27; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 216 && animationCount < 221) {
+    mmCx = 61; mmCy = 29; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 221 && animationCount < 224) {
+    mmCx = 61; mmCy = 31; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 224 && animationCount < 227) {
+    mmCx = 61; mmCy = 32; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 227 && animationCount < 230) {
+    mmCx = 61; mmCy = 33; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 227 && animationCount < 229) {
+    mmCx = 61; mmCy = 34; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 229 && animationCount < 231) {
+    mmCx = 61; mmCy = 35; rotate= -47; halfsize= 2;
+  } else if(animationCount >= 231) {
+    mmCx = 61; mmCy = 36; rotate= -47; halfsize= 2;
+  }
+  drawQuad(mmCx-halfsize,mmCy+halfsize,mmCx-halfsize,mmCy-halfsize,mmCx+halfsize,mmCy-halfsize,mmCx+halfsize,mmCy+halfsize,rotate,c.white);
+
+  // campfire
+  drawTriangle({45,40},{50,random(26,31)},{55,40},flames[random(2)]);
+  drawTriangle({55,40},{60,random(26,31)},{65,40},flames[random(2)]);
+  drawTriangle({65,40},{70,random(26,31)},{75,40},flames[random(2)]);
+  drawTriangle({50,40},{55,random(26,31)},{60,40},flames[random(2)]);  
+  drawTriangle({60,40},{65,random(26,31)},{70,40},flames[random(2)]);
+
+  // the owl
+
+
+  // PINECREST
+  font_7x5 f;
+  drawLetter(f.P,0 ,21, c.black, c.green);
+  drawLetter(f.I,5 ,21, c.black, c.green);
+  drawLetter(f.N,10 ,21, c.black, c.green);
+  drawLetter(f.E,15 ,21, c.black, c.green);
+  drawLetter(f.C,20 ,21, c.black, c.green);
+  drawLetter(f.R,25 ,21, c.black, c.green);
+  drawLetter(f.E,30 ,21, c.black, c.green);
+  drawLetter(f.S,35 ,21, c.black, c.green);
+  drawLetter(f.T,40 ,21, c.black, c.green);
+
+  drawLetter(f.N2,15 ,29, c.black, c.green);
+  drawLetter(f.N0,20 ,29, c.black, c.green);
+  drawLetter(f.N2,25 ,29, c.black, c.green);
+  drawLetter(f.N6,30 ,29, c.black, c.green);
+
+
+  // Reset the scene
+  if(animationCount > 250) {
+    animationCount = 0;
+    mmCx = 61;
+    mmCy = 20;
+    halfsize = 3;
+    rotate=0;
+  }
+}
+
 
 //#############################################################################
 // Functions for graphics primatives (circles, rectangles, triangles, etc.)
@@ -855,6 +975,21 @@ void drawEyeball(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct 
 }
 
 //####################################################
+//  Draw Letters.  Read fonts from graphicsFunctions.h
+//  Letters are 7x5 caps.
+//####################################################
+void drawLetter(uint8_t (*letter)[5], uint8_t llX ,uint8_t llY, const struct RGB& bgColor, const struct RGB& fgColor){
+  for (uint8_t col = 0; col < 5; col++) {
+    for(uint8_t row = 0; row < 7; row++) {
+      if(letter[row][col] == 1) {
+        writePixel(col+llX, llY-6 + row, fgColor);
+      } else {
+        writePixel(col+llX, llY-6 + row, bgColor);
+      }
+    }
+  }
+}
+//####################################################
 //  Draw filled circle into the backbuffer at a given 
 // center, with a given radius, and given color
 //####################################################
@@ -872,10 +1007,10 @@ void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct R
 //  Draw filled oval into the backbuffer at a given 
 // center, with a given minior/major radius, and given color
 //###########################################################
-void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusA, uint8_t radiusB, const struct RGB& color) {
+void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusX, uint8_t radiusY, const struct RGB& color) {
   uint8_t plusMinus;
-  for (uint8_t col = centerX - radiusA; col <= centerX + radiusA; col++) {
-    plusMinus = (float(radiusB)/float(radiusA)) * sqrt(pow(float(radiusA),2.0) - pow((col - centerX),2));
+  for (uint8_t col = centerX - radiusX; col <= centerX + radiusX; col++) {
+    plusMinus = (float(radiusY)/float(radiusX)) * sqrt(pow(float(radiusX),2.0) - pow((col - centerX),2));
     for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
       writePixel(col, row, color);
     }
@@ -918,6 +1053,78 @@ void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct R
   for (uint8_t col = llX; col <= urX; col++) {
     for(uint8_t row = urY; row <= llY; row++) {
       writePixel(col, row, color);
+    }
+  }
+}
+
+//################################################################
+//  Draw filled quadrilateral with specified four points, rotation 
+//  angle (in degrees) and color.  Be sure to specify the points 
+//  in clockwise order
+//################################################################
+void drawQuad(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t pt2X, uint8_t pt2Y, uint8_t pt3X, uint8_t pt3Y, int rotate, const struct RGB& color) {
+
+  // Store in array so we can iterate during transform
+  uint8_t points[8] = {pt0X, pt0Y, pt1X, pt1Y, pt2X, pt2Y, pt3X, pt3Y};
+  uint8_t tp[8];
+
+  // get the rotation angle in radians
+  float rad = rotate * PI / 180;
+
+  // get the center coords
+  float cx = (pt0X + pt1X + pt2X + pt3X) / 4;
+  float cy = (pt0Y + pt1Y + pt2Y + pt3Y) / 4;
+
+  // precompute sin/cos to reduce loop time
+  float s = sinf(rad);
+  float c = cosf(rad);
+
+  //Rotate points and store into translated point array
+  for(uint8_t i=0;i<8;i+=2) {
+    float dx = points[i] - cx;
+    float dy = points[i+1] - cy;
+    tp[i] = cx + dx * c - dy * s;
+    tp[i+1] = cy + dx * s + dy * c;
+  }
+
+  // Break the quad into two triangles.  Use the same point rotation (clockwise)
+  // Triangle 1: p0, p1, p2
+  // Triangle 2: p0, p2, p3
+  drawTriangle({tp[0],tp[1]}, {tp[2],tp[3]}, {tp[4],tp[5]}, color);
+  drawTriangle({tp[0],tp[1]}, {tp[4],tp[5]}, {tp[6],tp[7]}, color);
+
+}
+
+//##########################################################
+//  Draw line with specified two points, thickness and color
+//##########################################################
+void drawLine(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t thickness, const struct RGB& color) {
+  float m = float(pt1Y-pt0Y)/float(pt1X-pt0X);
+  float b = pt0Y - (m * pt0X);
+
+  // For loops need to inc/dec based on the slope
+  uint8_t minX, minY, maxX, maxY;
+  if(pt0X > pt1X) {
+    minX=pt1X;
+    maxX=pt0X;
+  } else {
+    minX=pt0X;
+    maxX=pt1X;
+  }
+  if(pt0Y > pt1Y) {
+    minY=pt1Y;
+    maxY=pt0Y;
+  } else {
+    minY=pt0Y;
+    maxY=pt1Y;
+  }
+
+  for (uint8_t col = minX; col <= maxX; col++) {
+    for(uint8_t row = minY; row <= maxY; row++) {
+      float y = (m * float(col)) + b;
+      if(abs(float(row) - y) <= thickness) {
+        writePixel(col, row, color);
+      }
     }
   }
 }

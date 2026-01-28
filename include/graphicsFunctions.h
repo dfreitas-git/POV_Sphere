@@ -51,7 +51,10 @@ struct Vec2 {
 
 void writePixel(uint8_t col, uint8_t row, const struct RGB& color);
 void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, const struct RGB& color);
+void drawLetter(uint8_t (*letter)[5], uint8_t llX ,uint8_t llY, const struct RGB& bgColor, const struct RGB& fgColor);
+void drawLine(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t thickness, const struct RGB& color);
 void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct RGB& color);
+void drawQuad(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t pt2X, uint8_t pt2Y, uint8_t pt3X, uint8_t pt3Y, int rotate, const struct RGB& color);
 void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& color);
 void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusA, uint8_t radiusB, const struct RGB& color);
 void drawDiamond(uint8_t centerX, uint8_t centerY, uint8_t extentX, uint8_t extentY, const struct RGB& color);
@@ -76,6 +79,7 @@ void fillBB_spiralD();
 void fillBB_eyeball();
 void fillBB_image();
 void fillBB_eyeball();
+void fillBB_pinecrest();
 
 // Sine for each column via look-up-table for speed
 constexpr float sineLUT[COLUMNS] = {
@@ -101,3 +105,94 @@ constexpr RGB colors[] = {
                 {196,16,12},
                 {0,235,235},
               };
+
+struct font_7x5 { 
+    uint8_t P[7][5] = {{0,0,0,0,0},
+                       {0,1,1,0,0},
+                       {0,1,0,1,0},
+                       {0,1,1,0,0},
+                       {0,1,0,0,0},
+                       {0,1,0,0,0},
+                       {0,0,0,0,0},
+                      };
+    uint8_t I[7][5] = {{0,0,0,0,0},
+                       {0,1,1,1,0},
+                       {0,0,1,0,0},
+                       {0,0,1,0,0},
+                       {0,0,1,0,0},
+                       {0,1,1,1,0},
+                       {0,0,0,0,0},
+                      };
+    uint8_t N[7][5] = {{0,0,0,0,0},
+                       {0,1,1,1,0},
+                       {0,1,0,1,0},
+                       {0,1,0,1,0},
+                       {0,1,0,1,0},
+                       {0,1,0,1,0},
+                       {0,0,0,0,0},
+                      };
+    uint8_t E[7][5] = {{0,0,0,0,0},
+                       {0,1,1,1,0},
+                       {0,1,0,0,0},
+                       {0,1,1,0,0},
+                       {0,1,0,0,0},
+                       {0,1,1,1,0},
+                       {0,0,0,0,0},
+                      };
+    uint8_t C[7][5] = {{0,0,0,0,0},
+                       {0,0,1,1,0},
+                       {0,1,0,0,0},
+                       {0,1,0,0,0},
+                       {0,1,0,0,0},
+                       {0,0,1,1,0},
+                       {0,0,0,0,0},
+                      };
+    uint8_t R[7][5] = {{0,0,0,0,0},
+                       {0,1,1,0,0},
+                       {0,1,0,1,0},
+                       {0,1,1,0,0},
+                       {0,1,1,0,0},
+                       {0,1,0,1,0},
+                       {0,0,0,0,0},
+                      };
+    uint8_t S[7][5] = {{0,0,0,0,0},
+                       {0,0,1,1,0},
+                       {0,1,0,0,0},
+                       {0,0,1,0,0},
+                       {0,0,0,1,0},
+                       {0,1,1,0,0},
+                       {0,0,0,0,0},
+                      };
+    uint8_t T[7][5] = {{0,0,0,0,0},
+                       {0,1,1,1,0},
+                       {0,0,1,0,0},
+                       {0,0,1,0,0},
+                       {0,0,1,0,0},
+                       {0,0,1,0,0},
+                       {0,0,0,0,0},
+                      };
+    uint8_t N2[7][5] = {{0,0,0,0,0},
+                        {0,1,1,0,0},
+                        {0,0,0,1,0},
+                        {0,0,1,0,0},
+                        {0,1,0,0,0},
+                        {0,1,1,1,0},
+                        {0,0,0,0,0},
+                      };
+    uint8_t N0[7][5] = {{0,0,0,0,0},
+                        {0,1,1,1,0},
+                        {0,1,0,1,0},
+                        {0,1,0,1,0},
+                        {0,1,0,1,0},
+                        {0,1,1,1,0},
+                        {0,0,0,0,0},
+                      };
+    uint8_t N6[7][5] = {{0,0,0,0,0},
+                        {0,0,1,0,0},
+                        {0,1,0,0,0},
+                        {0,1,1,0,0},
+                        {0,1,0,1,0},
+                        {0,0,1,0,0},
+                        {0,0,0,0,0},
+                      };
+};

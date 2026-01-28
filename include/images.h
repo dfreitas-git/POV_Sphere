@@ -8,6 +8,7 @@
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
+    IMG_pinecrestWrap,
     IMG_eyeballWrap,
     IMG_flowerWrap,
     IMG_diamondWrap,
@@ -58,6 +59,7 @@ extern void fillBB_spiralD();
 extern void fillBB_diamond();
 extern void fillBB_flower();
 extern void fillBB_eyeball();
+extern void fillBB_pinecrest();
 extern const Image *imageTable[IMG_COUNT];
 
 static const struct {
@@ -2210,4 +2212,14 @@ const Image eyeballWrap = {
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
     .functionPtr = fillBB_eyeball,
+};
+
+// Pinecrest
+const Image pinecrestWrap = {
+    .name = "Pinecrest",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_pinecrest,
 };
