@@ -403,8 +403,8 @@ void fillBB_pacman() {
   }
 
   if(open) {
-    // open mouth is an oval.  radiusX is the width, radiusY is the height
-    drawOval(40, 28, 25, 8, c.black);
+    // open mouth is an ellipse.  radiusX is the width, radiusY is the height
+    drawEllipse(40, 28, 25, 8, 0, c.black);
   } else {
 
     // Draw the closed mouth (simple horizontal line)
@@ -846,7 +846,9 @@ void fillBB_pinecrest() {
   drawTriangle({60,40},{65,random(26,31)},{70,40},flames[random(2)]);
 
   // the owl
-
+  uint32_t stop, start;
+  drawEllipse(90, 25, 15, 5, 0, c.red);
+  drawEllipse(90, 25, 15, 5, -90, c.blue);
 
   // PINECREST
   font_7x5 f;
@@ -937,6 +939,27 @@ void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, c
 }
 
 //######################
+//  Draw Owl
+//######################
+void drawOwl(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool blink) {
+  uint8_t dY;
+  if(blink) {
+    //close eyes
+  } else {
+    // open eyes
+  }
+  drawCircle(centerX,centerY+dY, 5, bodyColor);  // Head
+  drawRect(centerX-5, centerY+6+dY, centerX+5, centerY+dY, bodyColor); //body
+  drawCircle(centerX-2, centerY+dY, 1, eyeColor);  //left eye
+  drawCircle(centerX+2, centerY+dY, 1, eyeColor);  //right eye
+  drawTriangle({centerX-2,centerY+5+dY},{centerX-3,centerY+6+dY},{centerX-1,centerY+6+dY},bgColor); //right bottom cutout
+  drawTriangle({centerX+2,centerY+5+dY},{centerX+3,centerY+6+dY},{centerX+1,centerY+6+dY},bgColor); //left bottom cutout
+  writePixel(centerX-2, centerY+dY, bgColor);  //left iris
+  writePixel(centerX+2, centerY+dY, bgColor);  //right iris
+}
+
+
+//######################
 //  Draw Pacman Ghost
 //######################
 void drawGhost(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool jumpUp) {
@@ -1004,18 +1027,83 @@ void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct R
 }
 
 //###########################################################
-//  Draw filled oval into the backbuffer at a given 
+//  Draw filled Ellipse into the backbuffer at a given 
 // center, with a given minior/major radius, and given color
+// drawEllipse completely written by chatGPT.  Handles rotated 
+// ellipses (specify in degrees)
 //###########################################################
-void drawOval(uint8_t centerX, uint8_t centerY, uint8_t radiusX, uint8_t radiusY, const struct RGB& color) {
-  uint8_t plusMinus;
-  for (uint8_t col = centerX - radiusX; col <= centerX + radiusX; col++) {
-    plusMinus = (float(radiusY)/float(radiusX)) * sqrt(pow(float(radiusX),2.0) - pow((col - centerX),2));
-    for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
-      writePixel(col, row, color);
+
+void drawEllipse( uint8_t centerX, uint8_t centerY, uint8_t radiusX, uint8_t radiusY, float rotateDeg, const struct RGB& color) {
+    // ---- Precompute rotation ----
+    float theta = rotateDeg * 3.14159265f / 180.0f;
+    float cosT  = cosf(theta);
+    float sinT  = sinf(theta);
+
+    float invA2 = 1.0f / (radiusX * radiusX);
+    float invB2 = 1.0f / (radiusY * radiusY);
+
+    // ---- World-space AABB of rotated ellipse ----
+    // i.e. the maximun extent the ellipse will take in framebuffer (world) space
+    // We will use this when scanning X/Y to be sure we cover all the ellipse points
+    float ex = sqrtf((radiusX * cosT) * (radiusX * cosT) +
+                     (radiusY * sinT) * (radiusY * sinT));
+    float ey = sqrtf((radiusX * sinT) * (radiusX * sinT) +
+                     (radiusY * cosT) * (radiusY * cosT));
+
+    int minX = (int)floorf(centerX - ex);
+    int maxX = (int)ceilf (centerX + ex);
+    int minY = (int)floorf(centerY - ey);
+    int maxY = (int)ceilf (centerY + ey);
+
+    // ---- Clamp to framebuffer if needed ----
+    // minX = max(minX, 0); etc.
+
+    // ---- Scanline fill with span detection ----
+    for (int y = minY; y <= maxY; y++) {
+
+        bool inside = false;
+        int  spanStartX = 0;
+
+        float dy = (float)y - centerY;
+
+        for (int x = minX; x <= maxX; x++) {
+
+            float dx = (float)x - centerX;
+
+            // Inverse rotate world → ellipse local
+            float xr =  dx * cosT + dy * sinT;
+            float yr = -dx * sinT + dy * cosT;
+
+            // Ellipse equation in local space
+            // if test is < 1 point is inside ellipse, if > 1 it's outside
+            bool nowInside =
+                (xr * xr) * invA2 +
+                (yr * yr) * invB2 <= 1.0f;
+
+            // We detected the boundary of the ellipse, start filling this row from this x-coord
+            if (nowInside && !inside) {
+                spanStartX = x;
+            }
+
+            // Once we find the other edge, we fill the row from the spanStart to the current x
+            if (!nowInside && inside) {
+                for (int fx = spanStartX; fx < x; fx++) {
+                    writePixel(fx, y, color);
+                }
+            }
+
+            inside = nowInside;
+        }
+
+        // Close span at right edge if the second edge was at maxX
+        if (inside) {
+            for (int fx = spanStartX; fx <= maxX; fx++) {
+                writePixel(fx, y, color);
+            }
+        }
     }
-  }
 }
+
 
 //###########################################################
 //  Draw filled diamond to the backbuffer at a given 
