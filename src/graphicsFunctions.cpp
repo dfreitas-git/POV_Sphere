@@ -123,9 +123,9 @@ void fillBB_paint() {
     -1,-1,0,0,-1,0,5,6,5,-3,-2,0,0,-1,-1,0,1,0,5,6,5,-3,-4,-3,0,0,-3,-4,-3,0,  1,0,0,0,1,10,11,10,0,-1,-2,-3,-2,-1,0,0,-1,0,5,8,5,1,0,-3,-3,0,-2,-1,-1,0,
   };
   
-  static uint8_t bgColorIndex = 0;
-  static uint8_t fgColorIndex = 1;
-  uint8_t colorArrLen = sizeof(colors) / sizeof(colors[0]);
+  static int bgColorIndex = 0;
+  static int fgColorIndex = 1;
+  int colorArrLen = sizeof(colors) / sizeof(colors[0]);
 
   // Create instances for the foreground and background color
   static RGB fgColor, bgColor;
@@ -168,7 +168,7 @@ void fillBB_hBands() {
 
   // Create a head pointer which is the leading edge of the first spill color
   uint32_t elapsed = millis();
-  uint8_t head = (elapsed * 48) / 3000;      // 0–47 over 3 seconds
+  int head = (elapsed * 48) / 3000;      // 0–47 over 3 seconds
   head %= 48;  // Wrap back the start once head reaches the bottom of the Sphere
 
   // load with R, G, B for index 0,1,2
@@ -179,7 +179,7 @@ void fillBB_hBands() {
   // for each row, figure out which color band it lays in
   for (int row = 0; row < 48; row++) {
     int d = (head - row + 48) % 48;   // distance behind the head this current row is
-    uint8_t colorIndex;
+    int colorIndex;
     if (d < 8)        colorIndex=0;
     else if (d < 16)   colorIndex=1;
     else if (d < 24)   colorIndex=2;
@@ -221,7 +221,7 @@ void fillBB_hFade() {
 
   // Brightness: [-1,1] -> [0,255]
   // Use cos so brightness peaks are in phase 
-  uint8_t colorBright = (1 - cos(phase)) * 0.5 * 255;
+  int colorBright = (1 - cos(phase)) * 0.5 * 255;
 
   // Precompute sin of phi to keep it out of the inner loop
   float rowSin[ROWS];
@@ -231,7 +231,7 @@ void fillBB_hFade() {
   }
   for (int col = 0; col < COLUMNS; col++) {
     for (int row = 0; row < ROWS; row++) {
-      uint8_t bright = uint8_t((rowSin[row] * 0.5f + 0.5f) * colorBright);
+      int bright = uint8_t((rowSin[row] * 0.5f + 0.5f) * colorBright);
       uint8_t r8 = 0, g8 = 0, b8 = 0;
       switch (cycle % 3) {
         case 0: r8 = bright; break;
@@ -269,7 +269,7 @@ void fillBB_vFade() {
 
   // Brightness: [-1,1] -> [0,255]
   // Use cos so brightness peaks are in phase 
-  uint8_t colorBright = (1 - cos(phase)) * 0.5 * 255;
+  int colorBright = (1 - cos(phase)) * 0.5 * 255;
 
   // Now map the brightness based on the position
   for (int col = 0; col < COLUMNS; col++) {
@@ -277,7 +277,7 @@ void fillBB_vFade() {
     for (int row = 0; row < ROWS; row++) {
       float phi = (row / float(ROWS)) * PI - PI/2;
 
-      uint8_t bright = uint8_t((sin(theta * 6 + animatePhase) * 0.5f + 0.5f) * colorBright);
+      int bright = uint8_t((sin(theta * 6 + animatePhase) * 0.5f + 0.5f) * colorBright);
 
       uint8_t r8 = 0, g8 = 0, b8 = 0;
       switch (cycle % 3) {
@@ -298,16 +298,16 @@ void fillBB_vFade() {
 void fillBB_checker() {
 
   // Keep two sets of pointers for the colors befor/after the moving column dividing line
-  static uint8_t bg0ColorIndex = 0;
-  static uint8_t fg0ColorIndex = 1;
-  static uint8_t bg1ColorIndex = 2;
-  static uint8_t fg1ColorIndex = 3;
+  static int bg0ColorIndex = 0;
+  static int fg0ColorIndex = 1;
+  static int bg1ColorIndex = 2;
+  static int fg1ColorIndex = 3;
 
   // colors defined in graphicsFunctions.h
-  uint8_t colorArrLen = sizeof(colors) / sizeof(colors[0]);
+  int colorArrLen = sizeof(colors) / sizeof(colors[0]);
 
   // Use time to control the frequency of color changes
-  uint16_t colorPeriod = 2000;
+  int colorPeriod = 2000;
   uint32_t elapsed = millis();
 
   // What cycle are we in?
@@ -315,7 +315,7 @@ void fillBB_checker() {
   static uint32_t lastCycle = 0;
 
   // The advancing line where the color1 pair replaces color0 pair.  Wrap back to 0 after advancing past COLUMNS
-  uint8_t head = (elapsed * COLUMNS) / colorPeriod % COLUMNS;  
+  int head = (elapsed * COLUMNS) / colorPeriod % COLUMNS;  
 
   // Change colors when head wraps
   if (cycle != lastCycle) {    
@@ -332,9 +332,9 @@ void fillBB_checker() {
   }
 
   // Now map the color based on the position
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    uint8_t d = (head - col + COLUMNS) % COLUMNS;   // distance behind the head this current col is
-    uint8_t fgIndex, bgIndex;
+  for (int col = 0; col < COLUMNS; col++) {
+    int d = (head - col + COLUMNS) % COLUMNS;   // distance behind the head this current col is
+    int fgIndex, bgIndex;
 
     // Pick the color pair based on where we are relative to the moving head dividing line
     if (d > 0 && d <= head) {
@@ -344,7 +344,7 @@ void fillBB_checker() {
       fgIndex = fg0ColorIndex;
       bgIndex = bg0ColorIndex;
     }
-    for (uint8_t row = 0; row < ROWS; row++) {
+    for (int row = 0; row < ROWS; row++) {
 
       // shift by 3 so we "coarseify" the xor to happen across eight row/col bands
       bool fg = ((row >> 3) ^ (col >> 3)) & 1;
@@ -380,8 +380,8 @@ void fillBB_pacman() {
   static uint32_t lastCycle = 0;
 
   // Draw the yellow ball
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, c.yellow);
     }
   }
@@ -431,8 +431,8 @@ void fillBB_pacman1() {
   static uint32_t lastCycle = 0;
 
   // Fill the black background
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, c.black);
     }
   }
@@ -466,7 +466,7 @@ void fillBB_diamond() {
 
   // How quickly we do framebuffer updates (in ms)
   uint16_t animatePeriod = 50;
-  constexpr uint8_t borderWidth = 5;
+  constexpr int borderWidth = 5;
   static int animateCount = borderWidth;
 
   // Get the colors
@@ -480,8 +480,8 @@ void fillBB_diamond() {
   static uint32_t lastCycle = 0;
 
   // Fill the background
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, c.black);
     }
   }
@@ -529,8 +529,8 @@ void fillBB_flower() {
   static uint32_t lastCycle = 0;
 
   // Fill the background
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, c.black);
     }
   }
@@ -567,13 +567,13 @@ void fillBB_flower() {
 void fillBB_spiralR(){
 
   constexpr uint32_t spiralRevPeriod = 3000; //in mS 
-  constexpr uint8_t K = 1;  // Spiral twist factor
-  constexpr uint8_t numSpirals = 6;
-  constexpr uint8_t thickness = 8;  // How many pixels wide are the spirals
-  static uint8_t fg0ColorIndex = 0;
-  static uint8_t fg1ColorIndex = 1;
+  constexpr int K = 1;  // Spiral twist factor
+  constexpr int numSpirals = 6;
+  constexpr int thickness = 8;  // How many pixels wide are the spirals
+  static int fg0ColorIndex = 0;
+  static int fg1ColorIndex = 1;
   RGB bgColor = {0,0,0};
-  uint8_t colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
+  int colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
 
   static uint32_t phase = 0;
   static uint32_t lastColorSwitchTime = 0;
@@ -591,8 +591,8 @@ void fillBB_spiralR(){
   }
 
   // Fill the background
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, bgColor);
     }
   }
@@ -606,13 +606,13 @@ void fillBB_spiralR(){
 void fillBB_spiralL(){
 
   constexpr uint32_t spiralRevPeriod = 3000; //in mS 
-  constexpr uint8_t K = 1;  // Spiral twist factor
-  constexpr uint8_t numSpirals = 8;
-  constexpr uint8_t thickness = 3;  // How many pixels wide are the spirals
-  static uint8_t fg0ColorIndex = 0;
-  static uint8_t fg1ColorIndex = 1;
+  constexpr int K = 1;  // Spiral twist factor
+  constexpr int numSpirals = 8;
+  constexpr int thickness = 3;  // How many pixels wide are the spirals
+  static int fg0ColorIndex = 0;
+  static int fg1ColorIndex = 1;
   RGB bgColor = {0,0,0};
-  uint8_t colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
+  int colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
 
   static uint32_t phase = 0;
   static uint32_t lastColorSwitchTime = 0;
@@ -630,8 +630,8 @@ void fillBB_spiralL(){
   }
 
   // Fill the background
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, bgColor);
     }
   }
@@ -645,13 +645,13 @@ void fillBB_spiralL(){
 void fillBB_spiralD(){
 
   constexpr uint32_t spiralRevPeriod = 3000; //in mS 
-  constexpr uint8_t K = 1;  // Spiral twist factor
-  constexpr uint8_t numSpirals = 6;
-  constexpr uint8_t thickness = 3;  // How many pixels wide are the spirals
-  static uint8_t fg0ColorIndex = 0;
-  static uint8_t fg1ColorIndex = 1;
+  constexpr int K = 1;  // Spiral twist factor
+  constexpr int numSpirals = 6;
+  constexpr int thickness = 3;  // How many pixels wide are the spirals
+  static int fg0ColorIndex = 0;
+  static int fg1ColorIndex = 1;
   RGB bgColor = {0,0,0};
-  uint8_t colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
+  int colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
 
   static uint32_t phase = 0;
   static uint32_t lastColorSwitchTime = 0;
@@ -669,8 +669,8 @@ void fillBB_spiralD(){
   }
 
   // Fill the background
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, bgColor);
     }
   }
@@ -687,10 +687,10 @@ void fillBB_eyeball() {
   // How quickly we do framebuffer updates (in ms)
   constexpr uint16_t animatePeriod = 1000;
   constexpr uint16_t blinkPeriod = 5;  // how fast to blink
-  constexpr uint8_t ANIMATE_CYCLES_UNTIL_TRIGTGER = 1;  // how often to blink
-  static int16_t blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGTGER;  
-  static uint8_t blinkToRow = 0;  // How far down the blink is
-  static uint8_t whichEyeToBlink = 0;
+  constexpr int ANIMATE_CYCLES_UNTIL_TRIGTGER = 1;  // how often to blink
+  static int blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGTGER;  
+  static int blinkToRow = 0;  // How far down the blink is
+  static int whichEyeToBlink = 0;
 
   // Get the colors
   static palette c;
@@ -705,16 +705,16 @@ void fillBB_eyeball() {
   static uint32_t lastBlinkCycle = 0;
 
   // Fill the black background
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, c.black);
     }
   }
   // Animate the eyeball by offsetting the iris/pupil based on the cycle we are in
   static EYEBALL_MOVE position[5] = {CENTER, LEFT, RIGHT, UP, DOWN};
-  static uint8_t posIndex = 0;
+  static int posIndex = 0;
   if(cycle != lastCycle) {
-    posIndex = uint8_t(random(4));
+    posIndex = int(random(4));
     lastCycle = cycle;
     blinkTrigger--;  // count down until time to blink
     if(blinkTrigger < 0) {
@@ -728,7 +728,7 @@ void fillBB_eyeball() {
       lastBlinkCycle = blinkCycle;
       blinkToRow+=4;
       if(blinkToRow >= 40) {
-        whichEyeToBlink = uint8_t(random(3));
+        whichEyeToBlink = int(random(3));
         blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGTGER; 
         blinkToRow = 0;
       }
@@ -741,17 +741,12 @@ void fillBB_eyeball() {
 
   if(blinkTrigger < 0) {
     // Mask the eyeball from the top down in flesh tone (like an eyelid)
-    for(uint8_t row = 0; row < blinkToRow; row+=4) {
-      //for (uint8_t col = 0; col < COLUMNS; col++) {
-      //  writePixel(col, row, c.black);
-      //}
-      if(whichEyeToBlink == 0) {
-        drawRect(6,blinkToRow,34,0,c.black);
-      } else if(whichEyeToBlink == 1) {
-        drawRect(46,blinkToRow,74,0,c.black);
-      } else {
-        drawRect(86,blinkToRow,114,0,c.black);
-      }
+    if(whichEyeToBlink == 0) {
+      drawRect(6,blinkToRow,34,0,c.black);
+    } else if(whichEyeToBlink == 1) {
+      drawRect(46,blinkToRow,74,0,c.black);
+    } else {
+      drawRect(86,blinkToRow,114,0,c.black);
     }
   }
 }
@@ -778,18 +773,19 @@ void fillBB_pinecrest() {
   }
 
   // Fill the background
-  for (uint8_t col = 0; col < COLUMNS; col++) {
-    for (uint8_t row = 0; row < ROWS; row++) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, c.black);
     }
   }
+
 
   // roasting stick
   drawLine(63,22,90,29,1,c.darkgray);  
 
   // Marshmallow starts out square, then melts and drops into the fire
-  static uint8_t mmCx;
-  static uint8_t mmCy;
+  static int mmCx;
+  static int mmCy;
   static int rotate;
   static int halfsize;
 
@@ -900,7 +896,7 @@ static inline int wrapDist(int a, int b) {
     if (d < -(COLUMNS / 2)) d += COLUMNS;
     return d;
 }
-void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, const struct RGB& color) {
+void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, const struct RGB& color) {
   static int pcount = 0;
   int wD,wDF;
   for (int phi = 0; phi < ROWS; ++phi) { 
@@ -924,7 +920,7 @@ void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, co
 //######################
 //  Draw Pacman 
 //######################
-void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen) {
+void drawPacman(int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen) {
 
   // head
   drawCircle(centerX,centerY,11,bodyColor);
@@ -946,8 +942,8 @@ void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, c
 //######################
 //  Draw Owl
 //######################
-void drawOwl(uint8_t centerX, uint8_t centerY,  bool blink) {
-  uint8_t dY;
+void drawOwl(int centerX, int centerY,  bool blink) {
+  int dY;
   palette c;  // Get color palette
 
   if(blink) {
@@ -970,8 +966,8 @@ void drawOwl(uint8_t centerX, uint8_t centerY,  bool blink) {
 //######################
 //  Draw Pacman Ghost
 //######################
-void drawGhost(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool jumpUp) {
-  uint8_t dY;
+void drawGhost(int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool jumpUp) {
+  int dY;
   if(jumpUp) {
     dY = 3;
   } else {
@@ -991,9 +987,9 @@ void drawGhost(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, co
 //  Draw Eyeball
 // "move" uses an enum CENTER/LEFT/RIGHT/UP/DOWN 
 //########################################
-void drawEyeball(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, uint8_t move ) {
+void drawEyeball(int centerX, int centerY, int radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, int move ) {
 
-  int8_t dX,dY;
+  int dX,dY;
   if(move == CENTER) { dX=0; dY = 0;}
   if(move == LEFT) { dX=-5; dY = 0;}
   if(move == RIGHT) {dX=5; dY = 0;}
@@ -1009,9 +1005,9 @@ void drawEyeball(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct 
 //  Draw Letters.  Read fonts from graphicsFunctions.h
 //  Letters are 7x5 caps.
 //####################################################
-void drawLetter(uint8_t (*letter)[5], uint8_t llX ,uint8_t llY, const struct RGB& bgColor, const struct RGB& fgColor){
-  for (uint8_t col = 0; col < 5; col++) {
-    for(uint8_t row = 0; row < 7; row++) {
+void drawLetter(uint8_t (*letter)[5], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor){
+  for (int col = 0; col < 5; col++) {
+    for(int row = 0; row < 7; row++) {
       if(letter[row][col] == 1) {
         writePixel(col+llX, llY-6 + row, fgColor);
       } else {
@@ -1024,11 +1020,11 @@ void drawLetter(uint8_t (*letter)[5], uint8_t llX ,uint8_t llY, const struct RGB
 //  Draw filled circle into the backbuffer at a given 
 // center, with a given radius, and given color
 //####################################################
-void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& color) {
-  uint8_t plusMinus;
-  for (uint8_t col = centerX - radius; col <= centerX + radius; col++) {
+void drawCircle(int centerX, int centerY, int radius, const struct RGB& color) {
+  int plusMinus;
+  for (int col = centerX - radius; col <= centerX + radius; col++) {
     plusMinus = sqrt(pow(radius,2) - pow((col - centerX),2));
-    for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
+    for(int row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
       writePixel(col, row, color);
     }
   }
@@ -1041,7 +1037,7 @@ void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct R
 // ellipses (specify in degrees)
 //###########################################################
 
-void drawEllipse( uint8_t centerX, uint8_t centerY, uint8_t radiusX, uint8_t radiusY, float rotateDeg, const struct RGB& color) {
+void drawEllipse( int centerX, int centerY, int radiusX, int radiusY, float rotateDeg, const struct RGB& color) {
     // ---- Precompute rotation ----
     float theta = rotateDeg * 3.14159265f / 180.0f;
     float cosT  = cosf(theta);
@@ -1117,26 +1113,26 @@ void drawEllipse( uint8_t centerX, uint8_t centerY, uint8_t radiusX, uint8_t rad
 //  Draw filled diamond to the backbuffer at a given 
 // center, with a given minior/major extents and given color
 //###########################################################
-void drawDiamond(uint8_t centerX, uint8_t centerY, uint8_t extentX, uint8_t extentY, const struct RGB& color) {
+void drawDiamond(int centerX, int centerY, int extentX, int extentY, const struct RGB& color) {
   int plusMinus;
-  uint8_t leftX = centerX - extentX;
-  uint8_t leftY = centerY;
-  uint8_t rightX = centerX + extentX;
-  uint8_t rightY = centerY;
-  uint8_t topX = centerX;
-  uint8_t topY = centerY - extentY;
+  int leftX = centerX - extentX;
+  int leftY = centerY;
+  int rightX = centerX + extentX;
+  int rightY = centerY;
+  int topX = centerX;
+  int topY = centerY - extentY;
 
   // Draw the left half of the diamond with the positive y=mx (remember the "top" is row-0)
-  for (uint8_t col = leftX; col <= centerX; col++) {
+  for (int col = leftX; col <= centerX; col++) {
     plusMinus = (float(leftY-topY)/float(topX-leftX)) * (col-leftX);   // Offset X to run from 0 to centerX
-    for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
+    for(int row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
       writePixel(col, row, color);
     }
   }
   // Draw the right half of the diamond with the negative y=mx
-  for (uint8_t col = topX; col <= rightX; col++) {
+  for (int col = topX; col <= rightX; col++) {
     plusMinus = (float(rightY-topY)/float(rightX-topX)) * (rightX-col);   // Offset X to run rightX to 0
-    for(uint8_t row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
+    for(int row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
       writePixel(col, row, color);
     }
   }
@@ -1145,9 +1141,9 @@ void drawDiamond(uint8_t centerX, uint8_t centerY, uint8_t extentX, uint8_t exte
 //##########################################################
 //  Draw filled rect with specified  ll/ur points and color
 //##########################################################
-void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct RGB& color) {
-  for (uint8_t col = llX; col <= urX; col++) {
-    for(uint8_t row = urY; row <= llY; row++) {
+void drawRect(int llX, int llY, int urX, int urY, const struct RGB& color) {
+  for (int col = llX; col <= urX; col++) {
+    for(int row = urY; row <= llY; row++) {
       writePixel(col, row, color);
     }
   }
@@ -1158,11 +1154,11 @@ void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct R
 //  angle (in degrees) and color.  Be sure to specify the points 
 //  in clockwise order
 //################################################################
-void drawQuad(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t pt2X, uint8_t pt2Y, uint8_t pt3X, uint8_t pt3Y, int rotate, const struct RGB& color) {
+void drawQuad(int pt0X, int pt0Y, int pt1X, int pt1Y, int pt2X, int pt2Y, int pt3X, int pt3Y, int rotate, const struct RGB& color) {
 
   // Store in array so we can iterate during transform
-  uint8_t points[8] = {pt0X, pt0Y, pt1X, pt1Y, pt2X, pt2Y, pt3X, pt3Y};
-  uint8_t tp[8];
+  int points[8] = {pt0X, pt0Y, pt1X, pt1Y, pt2X, pt2Y, pt3X, pt3Y};
+  int tp[8];
 
   // get the rotation angle in radians
   float rad = rotate * PI / 180;
@@ -1176,7 +1172,7 @@ void drawQuad(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t pt
   float c = cosf(rad);
 
   //Rotate points and store into translated point array
-  for(uint8_t i=0;i<8;i+=2) {
+  for(int i=0;i<8;i+=2) {
     float dx = points[i] - cx;
     float dy = points[i+1] - cy;
     tp[i] = cx + dx * c - dy * s;
@@ -1204,10 +1200,10 @@ bool angleBetweenCCW(float a, float b, float c)
         return (b >= a || b <= c);
 }
 
-void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, uint8_t thickness, const struct RGB& color) {
+void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, const struct RGB& color) {
 
   // Get the extents of the points to use for scanning later
-  uint8_t minX, maxX, minY, maxY;
+  int minX, maxX, minY, maxY;
   minX=p1.x;
   if(p2.x < minX) { minX=p2.x; }
   if(p3.x < minX) { minX=p3.x; }
@@ -1252,14 +1248,15 @@ void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, uint8_t thickness, 
 
   float step = 1.0f / r;   // ~1 pixel per step
 
+  // Sweep the arc in polar (r, theta) and convert back to cartesian
   if (ccw) {
     // Take care of wrapping around 0/360 boundary
     if(theta3 < theta1) {
       theta3 += 2*PI;
     }
     for (float a = theta1; a <= theta3; a += step) {
-      uint8_t x = cx + r * cosf(a);
-      uint8_t y = cy + r * sinf(a);
+      int x = cx + r * cosf(a);
+      int y = cy + r * sinf(a);
       writePixel(x, y, color);
     }
   } else {
@@ -1268,8 +1265,8 @@ void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, uint8_t thickness, 
       theta1 += 2*PI;
     }
     for (float a = theta1; a >= theta3; a -= step) {
-      uint8_t x = cx + r * cosf(a);
-      uint8_t y = cy + r * sinf(a);
+      int x = cx + r * cosf(a);
+      int y = cy + r * sinf(a);
       writePixel(x, y, color);
     }
   }
@@ -1278,11 +1275,11 @@ void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, uint8_t thickness, 
 //##########################################################
 //  Draw line with specified two points, thickness and color
 //##########################################################
-void drawLine(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t thickness, const struct RGB& color) {
+void drawLine(int pt0X, int pt0Y, int pt1X, int pt1Y, int thickness, const struct RGB& color) {
   float m = float(pt1Y-pt0Y)/float(pt1X-pt0X);
   float b = pt0Y - (m * pt0X);
 
-  uint8_t minX, minY, maxX, maxY;
+  int minX, minY, maxX, maxY;
   if(pt0X > pt1X) {
     minX=pt1X;
     maxX=pt0X;
@@ -1298,8 +1295,8 @@ void drawLine(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t th
     maxY=pt1Y;
   }
 
-  for (uint8_t col = minX; col <= maxX; col++) {
-    for(uint8_t row = minY; row <= maxY; row++) {
+  for (int col = minX; col <= maxX; col++) {
+    for(int row = minY; row <= maxY; row++) {
       float y = (m * float(col)) + b;
       if(abs(float(row) - y) <= thickness) {
         writePixel(col, row, color);
@@ -1336,7 +1333,7 @@ bool pointInTriangle(const Vec2& p,
 void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct RGB& color) {
 
   // Only scan a rectangle as large as the extents of the triangle
-  uint8_t minX, maxX, minY, maxY;
+  int minX, maxX, minY, maxY;
   minX=v1.x;
   if(v2.x < minX) { minX=v2.x; }
   if(v3.x < minX) { minX=v3.x; }
@@ -1352,8 +1349,8 @@ void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct R
   if(v3.y > maxY) { maxY=v3.y; }
 
   Vec2 pt;
-  for (uint8_t col = minX; col <= maxX; col++) {
-    for(uint8_t row = minY; row <= maxY; row++) {
+  for (int col = minX; col <= maxX; col++) {
+    for(int row = minY; row <= maxY; row++) {
       pt.x = col;
       pt.y = row;
       if(pointInTriangle(pt, v1, v2, v3)) {
@@ -1367,11 +1364,25 @@ void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct R
 //  Write pixel to backBuffer at a given location
 //  We use three bytes per pixel for RGB
 //##################################################
-void writePixel(uint8_t col, uint8_t row, const struct RGB& color) {
-  // Be sure they are in-bounds
-  if(((col >= 0) && (col < COLUMNS)) && ((row >= 0) && (row <= ROWS))) {
-      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
+//void writePixel(int col, int row, const struct RGB& color) {
+//  // Be sure they are in-bounds and not negative
+//  if(((col >= 0) && (col < COLUMNS)) && ((row >= 0) && (row < ROWS))) {
+//      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
+//      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
+//      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
+//  }
+//}
+
+void writePixel(int col, int row, const struct RGB& color) {
+  // Be sure they are in-bounds and not negative
+  if ((unsigned)col < COLUMNS && (unsigned)row < ROWS) {
+      int idx = (row * COLUMNS + col) * 3;
+      backBuffer[idx]     = color.r;
+      backBuffer[idx + 1] = color.g;
+      backBuffer[idx + 2] = color.b;
+  } else {
+      outOfBoundsPixelCount++;
+      Serial.printf("writePixel bounds errors: %d\n",outOfBoundsPixelCount);
   }
 }
+

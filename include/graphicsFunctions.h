@@ -49,23 +49,26 @@ struct Vec2 {
     int x, y;
 };
 
-void writePixel(uint8_t col, uint8_t row, const struct RGB& color);
-void drawSpiral(uint32_t phase, int K, uint8_t numSpirals, uint8_t thickness, const struct RGB& color);
-void drawLetter(uint8_t (*letter)[5], uint8_t llX ,uint8_t llY, const struct RGB& bgColor, const struct RGB& fgColor);
-void drawLine(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t thickness, const struct RGB& color);
-void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, uint8_t thickness, const struct RGB& color);
+// Counter that holds the number of times we ever tried to write a pixel outside the framebuffer bounds
+static uint32_t outOfBoundsPixelCount = 0;
+
+void writePixel(int col, int row, const struct RGB& color);
+void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, const struct RGB& color);
+void drawLetter(uint8_t (*letter)[5], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor);
+void drawLine(int pt0X, int pt0Y, int pt1X, int pt1Y, int thickness, const struct RGB& color);
+void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, const struct RGB& color);
 bool angleBetweenCCW(float a, float b, float c);
-void drawRect(uint8_t llX, uint8_t llY, uint8_t urX, uint8_t urY, const struct RGB& color);
-void drawQuad(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t pt2X, uint8_t pt2Y, uint8_t pt3X, uint8_t pt3Y, int rotate, const struct RGB& color);
-void drawCircle(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& color);
-void drawEllipse( uint8_t centerX, uint8_t centerY, uint8_t radiusX, uint8_t radiusY, float rotateDeg, const struct RGB& color);
-void drawDiamond(uint8_t centerX, uint8_t centerY, uint8_t extentX, uint8_t extentY, const struct RGB& color);
+void drawRect(int llX, int llY, int urX, int urY, const struct RGB& color);
+void drawQuad(int pt0X, int pt0Y, int pt1X, int pt1Y, int pt2X, int pt2Y, int pt3X, int pt3Y, int rotate, const struct RGB& color);
+void drawCircle(int centerX, int centerY, int radius, const struct RGB& color);
+void drawEllipse( int centerX, int centerY, int radiusX, int radiusY, float rotateDeg, const struct RGB& color);
+void drawDiamond(int centerX, int centerY, int extentX, int extentY, const struct RGB& color);
 void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct RGB& color);
 float cross(const Vec2& a, const Vec2& b, const Vec2& c);
-void drawGhost(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool floatUp);
-void drawOwl(uint8_t centerX, uint8_t centerY, bool blink);
-void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen);
-void drawEyeball(uint8_t centerX, uint8_t centerY, uint8_t radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, uint8_t move );
+void drawGhost(int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool floatUp);
+void drawOwl(int centerX, int centerY, bool blink);
+void drawPacman(int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen);
+void drawEyeball(int centerX, int centerY, int radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, int move );
 void fillBB_pacman();
 void fillBB_pacman1();
 void fillBB_checker();
