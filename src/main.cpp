@@ -94,6 +94,8 @@ TaskHandle_t uiTaskHandle;
 void setup() {
   Serial.begin(115200);
   delay(1000);
+ 
+  Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
 
   // Create a semaphore for core-0 to use to be sure setup is complete before starting core-0 loop
   initDone = xSemaphoreCreateBinary();

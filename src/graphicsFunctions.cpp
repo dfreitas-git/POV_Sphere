@@ -846,9 +846,14 @@ void fillBB_pinecrest() {
   drawTriangle({60,40},{65,random(26,31)},{70,40},flames[random(2)]);
 
   // the owl
-  uint32_t stop, start;
-  drawEllipse(90, 25, 15, 5, 0, c.red);
-  drawEllipse(90, 25, 15, 5, -90, c.blue);
+  //drawOwl(90,25,0);
+   drawArc({90,30},{85,25},{90,20},1,c.green);
+   drawArc({100,20},{105,25},{100,30},1,c.yellow);
+   drawArc({90,20},{100,10},{110,20},1,c.red);
+   drawArc({110,30},{100,40},{90,30},1,c.blue);
+
+  //Serial.printf("x: %d  y: %d\n",x,y);
+  //Serial.printf("cx: %.1f  cy: %.1f  r: %.1f,  theta1: %.1f  theta2: %.1f  theta3: %.1f\n",cx,cy,r,theta1,theta2,theta3);
 
   // PINECREST
   font_7x5 f;
@@ -941,21 +946,24 @@ void drawPacman(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, c
 //######################
 //  Draw Owl
 //######################
-void drawOwl(uint8_t centerX, uint8_t centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool blink) {
+void drawOwl(uint8_t centerX, uint8_t centerY,  bool blink) {
   uint8_t dY;
+  palette c;  // Get color palette
+
   if(blink) {
     //close eyes
   } else {
     // open eyes
   }
-  drawCircle(centerX,centerY+dY, 5, bodyColor);  // Head
-  drawRect(centerX-5, centerY+6+dY, centerX+5, centerY+dY, bodyColor); //body
-  drawCircle(centerX-2, centerY+dY, 1, eyeColor);  //left eye
-  drawCircle(centerX+2, centerY+dY, 1, eyeColor);  //right eye
-  drawTriangle({centerX-2,centerY+5+dY},{centerX-3,centerY+6+dY},{centerX-1,centerY+6+dY},bgColor); //right bottom cutout
-  drawTriangle({centerX+2,centerY+5+dY},{centerX+3,centerY+6+dY},{centerX+1,centerY+6+dY},bgColor); //left bottom cutout
-  writePixel(centerX-2, centerY+dY, bgColor);  //left iris
-  writePixel(centerX+2, centerY+dY, bgColor);  //right iris
+  //head
+  drawEllipse(centerX, centerY+10, 10, 7, 0, c.brown);
+
+  // body
+  drawEllipse(centerX-10, centerY+5, 5, 15, -15, c.brown);
+  drawEllipse(centerX-15, centerY+5, 5, 15, -15, c.brown);
+  drawEllipse(centerX, centerY+5, 5, 15, -15, c.brown);
+  drawEllipse(centerX+5, centerY+5, 5, 15, -15, c.brown);
+  drawEllipse(centerX+10, centerY+5, 5, 15, -15, c.brown);
 }
 
 
@@ -1184,13 +1192,96 @@ void drawQuad(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t pt
 }
 
 //##########################################################
+//  Draw arc with three points, thickness and color
+//##########################################################
+// Helper function
+bool angleBetweenCCW(float a, float b, float c)
+{
+    // true if b is between a and c when sweeping CCW from a to c
+    if (a <= c)
+        return (b >= a && b <= c);
+    else
+        return (b >= a || b <= c);
+}
+
+void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, uint8_t thickness, const struct RGB& color) {
+
+  // Get the extents of the points to use for scanning later
+  uint8_t minX, maxX, minY, maxY;
+  minX=p1.x;
+  if(p2.x < minX) { minX=p2.x; }
+  if(p3.x < minX) { minX=p3.x; }
+  maxX=p1.x;
+  if(p2.x > maxX) { maxX=p2.x; }
+  if(p3.x > maxX) { maxX=p3.x; }
+
+  minY=p1.y;
+  if(p2.y < minY) { minY=p2.y; }
+  if(p3.y < minY) { minY=p3.y; }
+  maxY=p1.x;
+  if(p2.y > maxY) { maxY=p2.y; }
+  if(p3.y > maxY) { maxY=p3.y; }
+
+  // This is just using the perpendicular bisectors of each line segment to find the center
+  // of the circle that would pass through the three points.
+  int D = 2 * (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
+  float cx = ((pow(p1.x, 2) + pow(p1.y, 2)) * (p2.y - p3.y) + 
+              (pow(p2.x, 2) + pow(p2.y, 2)) * (p3.y - p1.y) + 
+              (pow(p3.x, 2) + pow(p3.y, 2)) * (p1.y - p2.y)) / D; 
+  
+  float cy = ((pow(p1.x, 2) + pow(p1.y, 2)) * (p3.x - p2.x) + 
+             (pow(p2.x, 2) + pow(p2.y, 2)) * (p1.x - p3.x) + 
+             (pow(p3.x, 2) + pow(p3.y, 2)) * (p2.x - p1.x)) / D; 
+  
+  // radius is just the center to any of the points
+  float r = sqrt(pow(cx-p1.x, 2) + pow(cy-p1.y, 2));
+  
+  // Get the angles from the center to each of the three points
+  // Turn them all positive
+  float theta1 = atan2f(p1.y - cy, p1.x - cx);
+  float theta2 = atan2f(p2.y - cy, p2.x - cx);
+  float theta3 = atan2f(p3.y - cy, p3.x - cx);
+
+  // normalize to all positive angles
+  if(theta1 < 0) theta1 += 2 * PI;
+  if(theta2 < 0) theta2 += 2 * PI;
+  if(theta3 < 0) theta3 += 2 * PI;
+
+  // See if we need to traverse clockwise or counter-clockwise to trace the arc through the three points
+  bool ccw = angleBetweenCCW(theta1, theta2, theta3);
+
+  float step = 1.0f / r;   // ~1 pixel per step
+
+  if (ccw) {
+    // Take care of wrapping around 0/360 boundary
+    if(theta3 < theta1) {
+      theta3 += 2*PI;
+    }
+    for (float a = theta1; a <= theta3; a += step) {
+      uint8_t x = cx + r * cosf(a);
+      uint8_t y = cy + r * sinf(a);
+      writePixel(x, y, color);
+    }
+  } else {
+    // Take care of wrapping around 0/360 boundary
+    if(theta1 < theta3) {
+      theta1 += 2*PI;
+    }
+    for (float a = theta1; a >= theta3; a -= step) {
+      uint8_t x = cx + r * cosf(a);
+      uint8_t y = cy + r * sinf(a);
+      writePixel(x, y, color);
+    }
+  }
+}
+
+//##########################################################
 //  Draw line with specified two points, thickness and color
 //##########################################################
 void drawLine(uint8_t pt0X, uint8_t pt0Y, uint8_t pt1X, uint8_t pt1Y, uint8_t thickness, const struct RGB& color) {
   float m = float(pt1Y-pt0Y)/float(pt1X-pt0X);
   float b = pt0Y - (m * pt0X);
 
-  // For loops need to inc/dec based on the slope
   uint8_t minX, minY, maxX, maxY;
   if(pt0X > pt1X) {
     minX=pt1X;
@@ -1277,7 +1368,10 @@ void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct R
 //  We use three bytes per pixel for RGB
 //##################################################
 void writePixel(uint8_t col, uint8_t row, const struct RGB& color) {
+  // Be sure they are in-bounds
+  if(((col >= 0) && (col < COLUMNS)) && ((row >= 0) && (row <= ROWS))) {
       backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
+  }
 }
