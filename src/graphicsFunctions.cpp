@@ -608,7 +608,7 @@ void fillBB_spiralL(){
   constexpr uint32_t spiralRevPeriod = 3000; //in mS 
   constexpr int K = 1;  // Spiral twist factor
   constexpr int numSpirals = 8;
-  constexpr int thickness = 3;  // How many pixels wide are the spirals
+  constexpr int thickness = 8;  // How many pixels wide are the spirals
   static int fg0ColorIndex = 0;
   static int fg1ColorIndex = 1;
   RGB bgColor = {0,0,0};
@@ -844,9 +844,9 @@ void fillBB_pinecrest() {
   // the owl
   //drawOwl(90,25,0);
    drawArc({90,30},{85,25},{90,20},1,c.green);
-   drawArc({100,20},{105,25},{100,30},1,c.yellow);
-   drawArc({90,20},{100,10},{110,20},1,c.red);
-   drawArc({110,30},{100,40},{90,30},1,c.blue);
+   drawArc({100,20},{105,25},{100,30},2,c.yellow);
+   drawArc({90,20},{100,10},{110,20},3,c.red);
+   drawArc({110,30},{100,40},{90,30},4,c.blue);
 
   //Serial.printf("x: %d  y: %d\n",x,y);
   //Serial.printf("cx: %.1f  cy: %.1f  r: %.1f,  theta1: %.1f  theta2: %.1f  theta3: %.1f\n",cx,cy,r,theta1,theta2,theta3);
@@ -1190,7 +1190,8 @@ void drawQuad(int pt0X, int pt0Y, int pt1X, int pt1Y, int pt2X, int pt2Y, int pt
 //##########################################################
 //  Draw arc with three points, thickness and color
 //##########################################################
-// Helper function
+// Helper functions
+// Test if angle-b is between the endpoints when we travel counter-clockwise
 bool angleBetweenCCW(float a, float b, float c)
 {
     // true if b is between a and c when sweeping CCW from a to c
@@ -1198,6 +1199,19 @@ bool angleBetweenCCW(float a, float b, float c)
         return (b >= a && b <= c);
     else
         return (b >= a || b <= c);
+}
+// Write the arc's pixels to the framebuffer
+void writeArcPixels(int cx, int cy, int r, float theta, int thickness, RGB color) {
+
+  int half = thickness / 2;
+  float ca = cosf(theta);
+  float sa = sinf(theta);
+  // Make thickness centered around the original arc
+  for (int t = -half; t <= half; t++) {
+    int x = cx + (r + t) * ca;
+    int y = cy + (r + t) * sa;
+    writePixel(x, y, color);
+  }
 }
 
 void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, const struct RGB& color) {
@@ -1246,7 +1260,8 @@ void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, cons
   // See if we need to traverse clockwise or counter-clockwise to trace the arc through the three points
   bool ccw = angleBetweenCCW(theta1, theta2, theta3);
 
-  float step = 1.0f / r;   // ~1 pixel per step
+  //float step = 1.0f / r;   // ~1 pixel per step
+  float step = 0.5f / r;   // Had to reduce to 0.5 as 1.0 ended up with some holes in the thick arcs
 
   // Sweep the arc in polar (r, theta) and convert back to cartesian
   if (ccw) {
@@ -1255,9 +1270,7 @@ void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, cons
       theta3 += 2*PI;
     }
     for (float a = theta1; a <= theta3; a += step) {
-      int x = cx + r * cosf(a);
-      int y = cy + r * sinf(a);
-      writePixel(x, y, color);
+      writeArcPixels(cx, cy, r, a, thickness, color);
     }
   } else {
     // Take care of wrapping around 0/360 boundary
@@ -1265,9 +1278,7 @@ void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, cons
       theta1 += 2*PI;
     }
     for (float a = theta1; a >= theta3; a -= step) {
-      int x = cx + r * cosf(a);
-      int y = cy + r * sinf(a);
-      writePixel(x, y, color);
+      writeArcPixels(cx, cy, r, a, thickness, color);
     }
   }
 }

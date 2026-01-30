@@ -58,6 +58,7 @@ void drawLetter(uint8_t (*letter)[5], int llX ,int llY, const struct RGB& bgColo
 void drawLine(int pt0X, int pt0Y, int pt1X, int pt1Y, int thickness, const struct RGB& color);
 void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, const struct RGB& color);
 bool angleBetweenCCW(float a, float b, float c);
+void writeArcPixels(int cx, int cy, int r, float theta, int thickness, RGB color);
 void drawRect(int llX, int llY, int urX, int urY, const struct RGB& color);
 void drawQuad(int pt0X, int pt0Y, int pt1X, int pt1Y, int pt2X, int pt2Y, int pt3X, int pt3Y, int rotate, const struct RGB& color);
 void drawCircle(int centerX, int centerY, int radius, const struct RGB& color);
