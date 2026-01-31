@@ -110,7 +110,8 @@ constexpr uint8_t MAX_TRIM = 2;           // The most we allow core-0 to adjust 
 
 // Core-1 angle values calculated and pll-locked to core-0 actual angle measurements
 constexpr uint8_t  OMEGA_SHIFT = 16;
-constexpr uint32_t OMEGA_TRIM_PERIOD = 30000000;  // The amount of time (in microseconds) we'd want to apply frequency trim over to our core-1 VCO
+//constexpr uint32_t OMEGA_TRIM_PERIOD = 30000000;  // The amount of time (in microseconds) we'd want to apply frequency trim over to our core-1 VCO
+constexpr uint32_t OMEGA_TRIM_PERIOD = 10000000;  // The amount of time (in microseconds) we'd want to apply frequency trim over to our core-1 VCO
 constexpr uint8_t  PHASE_DEADBAND = 10;           // Any angle error less than this and we don't apply any more correction to the VCO
 
 // Use integer math; keep remainder for precision

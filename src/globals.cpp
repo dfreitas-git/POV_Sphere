@@ -16,11 +16,11 @@ uint32_t lastMeasuredTime;         // micros() timestamp
 int64_t angle_accum;            // 64-bits so integer math doesn't lose remainder precision
 int32_t angle_q;                // current predicted angle (Q0, 0–4095)
 volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
+volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
 int32_t core_1_omega_ff;        // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
 uint16_t core_1_omega_trim;     // local copy used by core-1.
 uint32_t lastAngleTime;         // Used by core-1 to calculate dt between angle calculations
 long phase_error;               // Current error between measured angle from core-0 and computed angle on core-1
-volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
 
 // Core-1 column position vars
 uint32_t nextColumnAngle = 0;

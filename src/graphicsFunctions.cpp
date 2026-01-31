@@ -414,7 +414,7 @@ void fillBB_pacman() {
   } else {
 
     // Draw the closed mouth (simple horizontal line)
-    drawRect(15, 19, 65, 19, c.black);
+    drawRect(15, 19, 65, 19, 0, c.black);
   }
 }
 
@@ -748,11 +748,11 @@ void fillBB_eyeball() {
   if(blinkTrigger < 0) {
     // Mask the eyeball from the top down over the blinkPeriod in flesh tone (like an eyelid)
     if(whichEyeToBlink == 0) {
-      drawRect(6,blinkToRow,34,47,c.black);
+      drawRect(6,blinkToRow,34,47, 0,c.black);
     } else if(whichEyeToBlink == 1) {
-      drawRect(46,blinkToRow,74,47,c.black);
+      drawRect(46,blinkToRow,74,47, 0,c.black);
     } else {
-      drawRect(86,blinkToRow,114,47,c.black);
+      drawRect(86,blinkToRow,114,47, 0,c.black);
     }
   }
 }
@@ -794,62 +794,90 @@ void fillBB_pinecrest() {
 
 
   // roasting stick
-  drawLine(67,25,90,18,1,c.darkgray);  
+  drawLine(67,25,90,18,1,c.gray);  
 
   // Marshmallow starts out square, then melts and drops into the fire
   static int mmCx;
   static int mmCy;
   static int rotate;
   static int halfsize;
+  static RGB mmColor = c.white;
 
-  if(animationCount < 100) {
-    mmCx = 66; mmCy = 27; rotate= 0; halfsize= 3;
-  } else if(animationCount >= 100 && animationCount < 110) {
-    mmCx = 66; mmCy = 26; rotate= 5; halfsize= 3;
-  } else if(animationCount >= 110 && animationCount < 120) {
+  static int mmStart = 50;
+  if(animationCount < mmStart) {
+    mmCx = 66; mmCy = 27; rotate= 0;  halfsize= 3;
+  } else if(animationCount >= mmStart && animationCount < mmStart+10) {
+    mmCx = 66; mmCy = 26; rotate= 5;  halfsize= 3;
+  } else if(animationCount >= mmStart+10 && animationCount < mmStart+20) {
     mmCx = 66; mmCy = 26; rotate= 10; halfsize= 3;
-  } else if(animationCount >= 120 && animationCount < 130) {
+  } else if(animationCount >= mmStart+20 && animationCount < mmStart+30) {
     mmCx = 66; mmCy = 26; rotate= 14; halfsize= 3;
-  } else if(animationCount >= 130 && animationCount < 140) {
+  } else if(animationCount >= mmStart+30 && animationCount < mmStart+40) {
     mmCx = 66; mmCy = 25; rotate= 18; halfsize= 3;
-  } else if(animationCount >= 140 && animationCount < 150) {
+  } else if(animationCount >= mmStart+40 && animationCount < mmStart+50) {
     mmCx = 66; mmCy = 25; rotate= 25; halfsize= 3;
-  } else if(animationCount >= 150 && animationCount < 160) {
+  } else if(animationCount >= mmStart+50 && animationCount < mmStart+60) {
     mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
-  } else if(animationCount >= 160 && animationCount < 170) {
+  } else if(animationCount >= mmStart+60 && animationCount < mmStart+70) {
     mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
-  } else if(animationCount >= 170 && animationCount < 180) {
+  } else if(animationCount >= mmStart+70 && animationCount < mmStart+80) {
     mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
-  } else if(animationCount >= 180 && animationCount < 190) {
-    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 190 && animationCount < 201) {
-    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 201 && animationCount < 206) {
-    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 206 && animationCount < 211) {
-    mmCx = 66; mmCy = 22; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 211 && animationCount < 216) {
-    mmCx = 66; mmCy = 20; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 216 && animationCount < 221) {
-    mmCx = 66; mmCy = 18; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 221 && animationCount < 224) {
-    mmCx = 66; mmCy = 16; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 224 && animationCount < 227) {
-    mmCx = 66; mmCy = 15; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 227 && animationCount < 230) {
-    mmCx = 66; mmCy = 14; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 227 && animationCount < 229) {
-    mmCx = 66; mmCy = 13; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 229 && animationCount < 231) {
-    mmCx = 66; mmCy = 12; rotate= 47; halfsize= 2;
-  } else if(animationCount >= 231) {
-    mmCx = 66; mmCy = 11; rotate= 47; halfsize= 2;
+  } else if(animationCount >= mmStart+80 && animationCount < mmStart+90) {
+    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2; mmColor=c.brown;
+  } else if(animationCount >= mmStart+90 && animationCount < mmStart+100) {
+    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2; mmColor=c.brown;
+  } else if(animationCount >= mmStart+100 && animationCount < mmStart+106) {
+    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2; mmColor=c.brown;
+  } else if(animationCount >= mmStart+106 && animationCount < mmStart+111) {
+    mmCx = 66; mmCy = 22; rotate= 47; halfsize= 2; mmColor=c.brown;
+  } else if(animationCount >= mmStart+111 && animationCount < mmStart+116) {
+    mmCx = 66; mmCy = 20; rotate= 47; halfsize= 2; mmColor=c.brown;
+  } else if(animationCount >= mmStart+116 && animationCount < mmStart+121) {
+    mmCx = 66; mmCy = 18; rotate= 47; halfsize= 2; mmColor=c.darkgray;
+  } else if(animationCount >= mmStart+121 && animationCount < mmStart+124) {
+    mmCx = 66; mmCy = 16; rotate= 47; halfsize= 2; mmColor=c.darkgray;
+  } else if(animationCount >= mmStart+124 && animationCount < mmStart+127) {
+    mmCx = 66; mmCy = 15; rotate= 47; halfsize= 2; mmColor=c.darkgray;
+  } else if(animationCount >= mmStart+127 && animationCount < mmStart+130) {
+    mmCx = 66; mmCy = 14; rotate= 47; halfsize= 2; mmColor=c.darkgray;
+  } else if(animationCount >= mmStart+130 && animationCount < mmStart+133) {
+    mmCx = 66; mmCy = 13; rotate= 47; halfsize= 2; mmColor=c.darkgray;
+  } else if(animationCount >= mmStart+133 && animationCount < mmStart+136) {
+    mmCx = 66; mmCy = 12; rotate= 47; halfsize= 2; mmColor=c.darkgray;
+  } else if(animationCount >= mmStart+136) {
+    mmCx = 66; mmCy = 11; rotate= 47; halfsize= 2; mmColor=c.darkgray;
   }
-  drawQuad(mmCx-halfsize,mmCy+halfsize,mmCx-halfsize,mmCy-halfsize,mmCx+halfsize,mmCy-halfsize,mmCx+halfsize,mmCy+halfsize,rotate,c.white);
+  drawQuad(mmCx-halfsize,mmCy+halfsize,mmCx-halfsize,mmCy-halfsize,mmCx+halfsize,mmCy-halfsize,mmCx+halfsize,mmCy+halfsize,rotate,mmColor);
+
+  // Smoke from the burned marshmallow
+  if(animationCount >= mmStart+130 && animationCount < mmStart+135) {
+    drawArc({mmCx,15},{mmCx-2,18},{mmCx,21},1,c.white);
+  } else if(animationCount >= mmStart+135 && animationCount < mmStart+140) {
+    drawArc({mmCx,21},{mmCx+2,24},{mmCx,27},1,c.white);
+  } else if(animationCount >= mmStart+140 && animationCount < mmStart+145) {
+    drawArc({mmCx,27},{mmCx-2,30},{mmCx,33},1,c.white);
+  } else if(animationCount >= mmStart+145 && animationCount < mmStart+150) {
+    drawArc({mmCx,33},{mmCx+2,36},{mmCx,39},1,c.white);
+  } else if(animationCount >= mmStart+150 && animationCount < mmStart+155) {
+    drawArc({mmCx,39},{mmCx-2,42},{mmCx,45},1,c.white);
+  }
 
   // the owl
-  drawOwl(100,25,0);
-
+  bool blink = true;
+  bool squawk = true;
+  if(animationCount < mmStart+125 || animationCount >= mmStart+160) {
+    drawOwl(100,25,!blink,!squawk);
+  } else if(animationCount >= mmStart+125 && animationCount < mmStart+130) {
+    drawOwl(100,25,!blink,squawk);
+  } else if(animationCount >= mmStart+130 && animationCount < mmStart+145) {
+    drawOwl(100,25,!blink,squawk);
+  } else if(animationCount >= mmStart+145 && animationCount < mmStart+150) {
+    drawOwl(100,25,blink,squawk);
+  } else if(animationCount >= mmStart+150 && animationCount < mmStart+155) {
+    drawOwl(100,25,!blink,squawk);
+  } else if(animationCount >= mmStart+155 && animationCount < mmStart+160) {
+    drawOwl(100,25,!blink,!squawk);
+  }
 
   // PINECREST
   font_7x7 f;
@@ -869,12 +897,13 @@ void fillBB_pinecrest() {
   drawLetter(f.N6,31 ,18, c.black, c.green);
 
   // Reset the scene
-  if(animationCount > 250) {
+  if(animationCount > 200) {
     animationCount = 0;
     mmCx = 61;
     mmCy = 27;
     halfsize = 3;
     rotate=0;
+    mmColor=c.white;
   }
 }
 
@@ -934,22 +963,17 @@ void drawPacman(int centerX, int centerY, const struct RGB& bodyColor, const str
     drawTriangle({centerX-12,centerY+7}, {centerX-12,centerY-7}, {centerX,centerY}, bgColor);
   } else {
     // Draw the closed mouth (simple horizontal line)
-    drawRect(centerX-11, centerY, centerX-2, centerY, bgColor);
+    drawRect(centerX-11, centerY, centerX-2, centerY,  0,bgColor);
   }
 }
 
 //######################
 //  Draw Owl
 //######################
-void drawOwl(int centerX, int centerY,  bool blink) {
+void drawOwl(int centerX, int centerY,  bool blink, bool squawk) {
   int dY;
   palette c;  // Get color palette
 
-  if(blink) {
-    //close eyes
-  } else {
-    // open eyes
-  }
   // head
   drawEllipse(centerX, centerY+8, 11, 8, 0, c.brown);
 
@@ -958,14 +982,34 @@ void drawOwl(int centerX, int centerY,  bool blink) {
   drawTriangle({centerX+11,centerY+10},{centerX+15,centerY+16},{centerX+3,centerY+10},c.brown); 
 
   // eyes
-  drawCircle(centerX-5,centerY+8, 3, c.white);  // Left
-  drawCircle(centerX+5,centerY+8, 3, c.white);  // Right
-  drawCircle(centerX-5,centerY+8, 2, c.black);  // Left iris
-  drawCircle(centerX+5,centerY+8, 2, c.black);  // Right iris
+  if(blink) {
+    //close eyes
+    drawEllipse(centerX-5, centerY+8,4,3,0,c.brown);
+    drawEllipse(centerX+5, centerY+8,4,3,0,c.brown);
+  } else {
+    // open eyes
+    drawEllipse(centerX-5, centerY+8,4,3,0,c.white);
+    drawEllipse(centerX+5, centerY+8,4,3,0,c.white);
+    drawCircle(centerX-5,centerY+8, 2, c.black);  // Left iris
+    drawCircle(centerX+5,centerY+8, 2, c.black);  // Right iris
+  }
 
   // beak
-  drawCircle(centerX,centerY+4, 2, c.yellow); 
-  drawTriangle({centerX-1,centerY+4},{centerX,centerY+3},{centerX+1,centerY+4},c.yellow); 
+  if(squawk) {
+    // open beak
+    drawCircle(centerX,centerY+4, 2, c.yellow); 
+    drawTriangle({centerX-1,centerY+4},{centerX,centerY+3},{centerX+1,centerY+4},c.yellow); 
+    drawCircle(centerX,centerY+4, 1, c.black); 
+    drawTriangle({centerX-1,centerY+3},{centerX,centerY+2},{centerX+1,centerY+3},c.black); 
+  } else {
+    // close beak
+    drawCircle(centerX,centerY+4, 2, c.yellow); 
+    drawTriangle({centerX-1,centerY+4},{centerX,centerY+3},{centerX+1,centerY+4},c.yellow); 
+  }
+
+  // Feet
+  drawTriangle({centerX-4,centerY-9},{centerX-5,centerY-13},{centerX-1,centerY-9},c.yellow); 
+  drawTriangle({centerX+1,centerY-9},{centerX,centerY-13},{centerX+4,centerY-9},c.yellow); 
 
   // body
   drawEllipse(centerX-5, centerY-5, 3, 6, 15, c.brown);
@@ -973,6 +1017,7 @@ void drawOwl(int centerX, int centerY,  bool blink) {
   drawEllipse(centerX,    centerY-5, 3, 6, 15, c.brown);
   drawEllipse(centerX+2,  centerY-5, 3, 6, 15, c.brown);
   drawEllipse(centerX+5, centerY-5, 3, 6, 15, c.brown);
+  drawArc({centerX+6,centerY-10},{centerX+3,centerY-3},{centerX+5,centerY+2},1,c.black);
 
   // wing
   drawEllipse(centerX-10, centerY-5, 2, 6, -25, c.brown);
@@ -990,7 +1035,7 @@ void drawGhost(int centerX, int centerY, const struct RGB& bodyColor, const stru
     dY = 0;
   }
   drawCircle(centerX,centerY+dY, 5, bodyColor);  // Head
-  drawRect(centerX-5, centerY-6+dY, centerX+5, centerY+dY, bodyColor); //body
+  drawRect(centerX-5, centerY-6+dY, centerX+5, centerY+dY,  0,bodyColor); //body
   drawCircle(centerX-2, centerY+dY, 1, eyeColor);  //left eye
   drawCircle(centerX+2, centerY+dY, 1, eyeColor);  //right eye
   drawTriangle({centerX-2,centerY-5+dY},{centerX-3,centerY-6+dY},{centerX-1,centerY-6+dY},bgColor); //right bottom cutout
@@ -1154,10 +1199,10 @@ void drawDiamond(int centerX, int centerY, int extentX, int extentY, const struc
   }
 }
 
-//##########################################################
-//  Draw filled rect with specified  ll/ur points and color
-//##########################################################
-void drawRect(int llX, int llY, int urX, int urY, const struct RGB& color) {
+//####################################################################
+//  Draw filled rect with specified  ll/ur points, rotation and color
+//####################################################################
+void drawRect(int llX, int llY, int urX, int urY, int rotate, const struct RGB& color) {
   // In case they mixed up ll/ur
   if(llX > urX) {
     int tmpX = llX;
@@ -1169,11 +1214,12 @@ void drawRect(int llX, int llY, int urX, int urY, const struct RGB& color) {
     llY = urY;
     urY = tmpY;
   }
-  for (int col = llX; col <= urX; col++) {
-    for(int row = llY; row <= urY; row++) {
-      writePixel(col, row, color);
-    }
-  }
+  drawQuad(llX, llY, llX, urY, urX, urY, urX, llY, rotate, color);
+  //for (int col = llX; col <= urX; col++) {
+  //  for(int row = llY; row <= urY; row++) {
+  //    writePixel(col, row, color);
+  //  }
+  //}
 }
 
 //################################################################

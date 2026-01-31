@@ -59,15 +59,15 @@ void drawLine(int pt0X, int pt0Y, int pt1X, int pt1Y, int thickness, const struc
 void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, const struct RGB& color);
 bool angleBetweenCCW(float a, float b, float c);
 void writeArcPixels(int cx, int cy, int r, float theta, int thickness, RGB color);
-void drawRect(int llX, int llY, int urX, int urY, const struct RGB& color);
+void drawRect(int llX, int llY, int urX, int urY, int rotate, const struct RGB& color);
 void drawQuad(int pt0X, int pt0Y, int pt1X, int pt1Y, int pt2X, int pt2Y, int pt3X, int pt3Y, int rotate, const struct RGB& color);
 void drawCircle(int centerX, int centerY, int radius, const struct RGB& color);
-void drawEllipse( int centerX, int centerY, int radiusX, int radiusY, float rotateDeg, const struct RGB& color);
+void drawEllipse( int centerX, int centerY, int radiusX, int radiusY, float rotate, const struct RGB& color);
 void drawDiamond(int centerX, int centerY, int extentX, int extentY, const struct RGB& color);
 void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct RGB& color);
 float cross(const Vec2& a, const Vec2& b, const Vec2& c);
 void drawGhost(int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool floatUp);
-void drawOwl(int centerX, int centerY, bool blink);
+void drawOwl(int centerX, int centerY, bool blink, bool squawk);
 void drawPacman(int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen);
 void drawEyeball(int centerX, int centerY, int radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, int move );
 void fillBB_pacman();
