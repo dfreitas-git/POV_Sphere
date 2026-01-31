@@ -41,9 +41,10 @@ void fillBB_image() {
 
       // Now store the rgb (three bytes per row) data into the backbuffer.  In the rendering (by core-1), 
       // we will add the start bytes, brightness, gamma, and stop bytes before DMA to the dotStars.
-      backBuffer[(row * COLUMNS * 3) + (col * 3)] = r8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+      // Reverse the rows since Gimp stores row 0 at the top and our framebuffer starts with 0 at the bottom.
+      backBuffer[((ROWS-1-row) * COLUMNS * 3) + (col * 3)] = r8;
+      backBuffer[((ROWS-1-row) * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      backBuffer[((ROWS-1-row) * COLUMNS * 3) + (col * 3 + 2)] = b8;
 
       // Advance to next row, same column
       p += imageTable[imageToDisplayIndex]->width * 2;
@@ -113,14 +114,18 @@ void fillBB_paint() {
   // Create a head pointer which is the leading edge of the first spill color
   uint16_t spillTime_mS = 4000;   // Time to iterate acroll 48 rows
   uint32_t elapsed = millis();
+
   uint32_t head = (elapsed * 48) / spillTime_mS;   // What row the spill edge is at
+  head %= ROWS;
+
+  // Start the head pointer from the top (row-47) and move down to the bottom (row-0)
+  uint32_t  frameBufferHeadPtr = (ROWS-1) - head;
   uint32_t cycle = elapsed / spillTime_mS;        // integer cycle count  
-  head %= 48;
 
   // Pattern of how we want the boundary edge to look (just "paint" one half and we will tile it to both sides of the Sphere
-  // the numbers are the numbe of rows the column will modify its head-pointer by.  minus means up (the sphere rows start a 0 on top).  Pos means down.
+  // the numbers are the numbe of rows each column will modify its head-pointer by.  This is how we make the edge look "drippy"
   static const int8_t waveLUT[COLUMNS/2] = {
-    -1,-1,0,0,-1,0,5,6,5,-3,-2,0,0,-1,-1,0,1,0,5,6,5,-3,-4,-3,0,0,-3,-4,-3,0,  1,0,0,0,1,10,11,10,0,-1,-2,-3,-2,-1,0,0,-1,0,5,8,5,1,0,-3,-3,0,-2,-1,-1,0,
+    1,1,0,0,1,0,-5,-6,-5,3,2,0,0,1,1,0,-1,0,-5,-6,-5,3,4,3,0,0,3,4,3,0,  -1,0,0,0,-1,-10,-11,-10,0,1,2,3,2,1,0,0,1,0,-5,-8,-5,-1,0,3,3,0,2,1,1,0,
   };
   
   static int bgColorIndex = 0;
@@ -131,7 +136,7 @@ void fillBB_paint() {
   static RGB fgColor, bgColor;
   static uint32_t lastCycle = 0;
 
-  // head just wrapped from 47 → 0, swap rgb fg/bg colors and compute a new fg color
+  // head just wrapped from 0 -> 47 swap rgb fg/bg colors and compute a new fg color
   if (cycle != lastCycle) {    
     bgColor = colors[bgColorIndex];
     fgColor = colors[fgColorIndex];
@@ -140,18 +145,19 @@ void fillBB_paint() {
     if(bgColorIndex == colorArrLen - 1) {
        bgColorIndex = 0;
     }
-    if(fgColorIndex == colorArrLen - 1 ) {
-       fgColorIndex = 0;
+    if(fgColorIndex == colorArrLen ) {
+       fgColorIndex = 1;
     }
     lastCycle = cycle;
   }
 
-  // for each row, figure out which color band it lays in
+  // For each row, figure out which color band it lays in
+  // Start from the top row so it looks like the paint is flowing down
   for (int row = 0; row < 48; row++) {
     for (int col = 0; col < 120; col++) {
 
       // Shape the boundary with offsets from our look up table
-      int curHead = head + waveLUT[col % COLUMNS/2];
+      int curHead = frameBufferHeadPtr + waveLUT[col % COLUMNS/2];
       RGB color = (row <= curHead) ? fgColor : bgColor;
 
       backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
@@ -361,9 +367,9 @@ void fillBB_checker() {
   }
 }
 
-//##################
-//  Pacman chomping
-//##################
+//####################################
+//  Whole globe sized Pacman chomping
+//####################################
 void fillBB_pacman() {
 
   // How quickly we do framebuffer updates (in ms)
@@ -387,12 +393,12 @@ void fillBB_pacman() {
   }
 
   // Draw the left eye (a circle with a notch)
-  drawCircle(30,15,4,c.black);
-  drawTriangle({28,15}, {20,5}, {20,25}, c.yellow);
+  drawCircle(30,32,4,c.black);
+  drawTriangle({28,32}, {20,42}, {20,22}, c.yellow);
 
   // Draw the right eye
-  drawCircle(50,15,4,c.black);
-  drawTriangle({52,15}, {60,5}, {60,25}, c.yellow);
+  drawCircle(50,32,4,c.black);
+  drawTriangle({52,32}, {60,42}, {60,22}, c.yellow);
 
   // Animate the mouth by drawing open/close based on the cycle we are in
   
@@ -404,11 +410,11 @@ void fillBB_pacman() {
 
   if(open) {
     // open mouth is an ellipse.  radiusX is the width, radiusY is the height
-    drawEllipse(40, 28, 25, 8, 0, c.black);
+    drawEllipse(40, 19, 25, 8, 0, c.black);
   } else {
 
     // Draw the closed mouth (simple horizontal line)
-    drawRect(15, 28, 65, 28, c.black);
+    drawRect(15, 19, 65, 19, c.black);
   }
 }
 
@@ -445,17 +451,17 @@ void fillBB_pacman1() {
     lastCycle = cycle;
   }
   // Draw Pacman
-  drawPacman(41,23,c.yellow,c.black,mouthOpen);
+  drawPacman(41,24,c.yellow,c.black,mouthOpen);
 
   // Draw the ghosts
-  drawGhost(65, 22, c.red, c.black, c.white,jumpUp);
-  drawGhost(85, 22, c.blue, c.black, c.white,!jumpUp);
-  drawGhost(105, 22, c.orange, c.black, c.white,jumpUp);
+  drawGhost(65, 25, c.red, c.black, c.white,jumpUp);
+  drawGhost(85, 25, c.blue, c.black, c.white,!jumpUp);
+  drawGhost(105, 25, c.orange, c.black, c.white,jumpUp);
 
   // Draw the Pacman food dots
-  drawCircle(5, 24, 2, c.yellow);
-  drawCircle(15, 24, 2, c.yellow);
-  drawCircle(25, 24, 2, c.yellow);
+  drawCircle(5, 23, 2, c.yellow);
+  drawCircle(15, 23, 2, c.yellow);
+  drawCircle(25, 23, 2, c.yellow);
 }
 
 
@@ -687,9 +693,9 @@ void fillBB_eyeball() {
   // How quickly we do framebuffer updates (in ms)
   constexpr uint16_t animatePeriod = 1000;
   constexpr uint16_t blinkPeriod = 5;  // how fast to blink
-  constexpr int ANIMATE_CYCLES_UNTIL_TRIGTGER = 1;  // how often to blink
-  static int blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGTGER;  
-  static int blinkToRow = 0;  // How far down the blink is
+  constexpr int ANIMATE_CYCLES_UNTIL_TRIGGER = 1;  // how often to blink
+  static int blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGGER;  
+  static int blinkToRow = ROWS - 1;  // How far down the blink is
   static int whichEyeToBlink = 0;
 
   // Get the colors
@@ -726,27 +732,27 @@ void fillBB_eyeball() {
   if(blinkTrigger < 0) {
     if(blinkCycle != lastBlinkCycle) {
       lastBlinkCycle = blinkCycle;
-      blinkToRow+=4;
-      if(blinkToRow >= 40) {
+      blinkToRow-=4;
+      if(blinkToRow <= 4) {
         whichEyeToBlink = int(random(3));
-        blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGTGER; 
-        blinkToRow = 0;
+        blinkTrigger = ANIMATE_CYCLES_UNTIL_TRIGGER; 
+        blinkToRow = ROWS - 1;
       }
     }
   }
   // Draw Eyeball
-  drawEyeball(20, 22, 14, c.mediumblue, c.black, c.mediumgray, position[posIndex] );
-  drawEyeball(60, 22, 14, c.olivegreen, c.black, c.mediumgray, position[posIndex] );
-  drawEyeball(100, 22, 14, c.brown, c.black, c.mediumgray, position[posIndex] );
+  drawEyeball(20, 25, 14, c.mediumblue, c.black, c.mediumgray, position[posIndex] );
+  drawEyeball(60, 25, 14, c.olivegreen, c.black, c.mediumgray, position[posIndex] );
+  drawEyeball(100, 25, 14, c.brown, c.black, c.mediumgray, position[posIndex] );
 
   if(blinkTrigger < 0) {
-    // Mask the eyeball from the top down in flesh tone (like an eyelid)
+    // Mask the eyeball from the top down over the blinkPeriod in flesh tone (like an eyelid)
     if(whichEyeToBlink == 0) {
-      drawRect(6,blinkToRow,34,0,c.black);
+      drawRect(6,blinkToRow,34,47,c.black);
     } else if(whichEyeToBlink == 1) {
-      drawRect(46,blinkToRow,74,0,c.black);
+      drawRect(46,blinkToRow,74,47,c.black);
     } else {
-      drawRect(86,blinkToRow,114,0,c.black);
+      drawRect(86,blinkToRow,114,47,c.black);
     }
   }
 }
@@ -779,9 +785,16 @@ void fillBB_pinecrest() {
     }
   }
 
+  // campfire
+  drawTriangle({50,7},{55,random(16,21)},{60,7},flames[random(2)]);
+  drawTriangle({60,7},{65,random(16,21)},{70,7},flames[random(2)]);
+  drawTriangle({70,7},{75,random(16,21)},{80,7},flames[random(2)]);
+  drawTriangle({55,7},{60,random(16,21)},{65,7},flames[random(2)]);  
+  drawTriangle({65,7},{70,random(16,21)},{75,7},flames[random(2)]);
+
 
   // roasting stick
-  drawLine(63,22,90,29,1,c.darkgray);  
+  drawLine(67,25,90,18,1,c.darkgray);  
 
   // Marshmallow starts out square, then melts and drops into the fire
   static int mmCx;
@@ -790,90 +803,76 @@ void fillBB_pinecrest() {
   static int halfsize;
 
   if(animationCount < 100) {
-    mmCx = 61; mmCy = 20; rotate= 0; halfsize= 3;
+    mmCx = 66; mmCy = 27; rotate= 0; halfsize= 3;
   } else if(animationCount >= 100 && animationCount < 110) {
-    mmCx = 61; mmCy = 21; rotate= -5; halfsize= 3;
+    mmCx = 66; mmCy = 26; rotate= 5; halfsize= 3;
   } else if(animationCount >= 110 && animationCount < 120) {
-    mmCx = 61; mmCy = 21; rotate= -10; halfsize= 3;
+    mmCx = 66; mmCy = 26; rotate= 10; halfsize= 3;
   } else if(animationCount >= 120 && animationCount < 130) {
-    mmCx = 61; mmCy = 21; rotate= -14; halfsize= 3;
+    mmCx = 66; mmCy = 26; rotate= 14; halfsize= 3;
   } else if(animationCount >= 130 && animationCount < 140) {
-    mmCx = 61; mmCy = 22; rotate= -18; halfsize= 3;
+    mmCx = 66; mmCy = 25; rotate= 18; halfsize= 3;
   } else if(animationCount >= 140 && animationCount < 150) {
-    mmCx = 61; mmCy = 22; rotate= -25; halfsize= 3;
+    mmCx = 66; mmCy = 25; rotate= 25; halfsize= 3;
   } else if(animationCount >= 150 && animationCount < 160) {
-    mmCx = 61; mmCy = 23; rotate= -25; halfsize= 3;
+    mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
   } else if(animationCount >= 160 && animationCount < 170) {
-    mmCx = 61; mmCy = 23; rotate= -25; halfsize= 3;
+    mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
   } else if(animationCount >= 170 && animationCount < 180) {
-    mmCx = 61; mmCy = 23; rotate= -25; halfsize= 3;
+    mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
   } else if(animationCount >= 180 && animationCount < 190) {
-    mmCx = 61; mmCy = 24; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2;
   } else if(animationCount >= 190 && animationCount < 201) {
-    mmCx = 61; mmCy = 24; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2;
   } else if(animationCount >= 201 && animationCount < 206) {
-    mmCx = 61; mmCy = 24; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2;
   } else if(animationCount >= 206 && animationCount < 211) {
-    mmCx = 61; mmCy = 25; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 22; rotate= 47; halfsize= 2;
   } else if(animationCount >= 211 && animationCount < 216) {
-    mmCx = 61; mmCy = 27; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 20; rotate= 47; halfsize= 2;
   } else if(animationCount >= 216 && animationCount < 221) {
-    mmCx = 61; mmCy = 29; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 18; rotate= 47; halfsize= 2;
   } else if(animationCount >= 221 && animationCount < 224) {
-    mmCx = 61; mmCy = 31; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 16; rotate= 47; halfsize= 2;
   } else if(animationCount >= 224 && animationCount < 227) {
-    mmCx = 61; mmCy = 32; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 15; rotate= 47; halfsize= 2;
   } else if(animationCount >= 227 && animationCount < 230) {
-    mmCx = 61; mmCy = 33; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 14; rotate= 47; halfsize= 2;
   } else if(animationCount >= 227 && animationCount < 229) {
-    mmCx = 61; mmCy = 34; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 13; rotate= 47; halfsize= 2;
   } else if(animationCount >= 229 && animationCount < 231) {
-    mmCx = 61; mmCy = 35; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 12; rotate= 47; halfsize= 2;
   } else if(animationCount >= 231) {
-    mmCx = 61; mmCy = 36; rotate= -47; halfsize= 2;
+    mmCx = 66; mmCy = 11; rotate= 47; halfsize= 2;
   }
   drawQuad(mmCx-halfsize,mmCy+halfsize,mmCx-halfsize,mmCy-halfsize,mmCx+halfsize,mmCy-halfsize,mmCx+halfsize,mmCy+halfsize,rotate,c.white);
 
-  // campfire
-  drawTriangle({45,40},{50,random(26,31)},{55,40},flames[random(2)]);
-  drawTriangle({55,40},{60,random(26,31)},{65,40},flames[random(2)]);
-  drawTriangle({65,40},{70,random(26,31)},{75,40},flames[random(2)]);
-  drawTriangle({50,40},{55,random(26,31)},{60,40},flames[random(2)]);  
-  drawTriangle({60,40},{65,random(26,31)},{70,40},flames[random(2)]);
-
   // the owl
-  //drawOwl(90,25,0);
-   drawArc({90,30},{85,25},{90,20},1,c.green);
-   drawArc({100,20},{105,25},{100,30},2,c.yellow);
-   drawArc({90,20},{100,10},{110,20},3,c.red);
-   drawArc({110,30},{100,40},{90,30},4,c.blue);
+  drawOwl(100,25,0);
 
-  //Serial.printf("x: %d  y: %d\n",x,y);
-  //Serial.printf("cx: %.1f  cy: %.1f  r: %.1f,  theta1: %.1f  theta2: %.1f  theta3: %.1f\n",cx,cy,r,theta1,theta2,theta3);
 
   // PINECREST
-  font_7x5 f;
-  drawLetter(f.P,0 ,21, c.black, c.green);
-  drawLetter(f.I,5 ,21, c.black, c.green);
-  drawLetter(f.N,10 ,21, c.black, c.green);
-  drawLetter(f.E,15 ,21, c.black, c.green);
-  drawLetter(f.C,20 ,21, c.black, c.green);
-  drawLetter(f.R,25 ,21, c.black, c.green);
-  drawLetter(f.E,30 ,21, c.black, c.green);
-  drawLetter(f.S,35 ,21, c.black, c.green);
-  drawLetter(f.T,40 ,21, c.black, c.green);
+  font_7x7 f;
+  drawLetter(f.P,0 ,32, c.black, c.green);
+  drawLetter(f.I,7 ,32, c.black, c.green);
+  drawLetter(f.N,14 ,32, c.black, c.green);
+  drawLetter(f.E,21 ,32, c.black, c.green);
+  drawLetter(f.C,28 ,32, c.black, c.green);
+  drawLetter(f.R,35 ,32, c.black, c.green);
+  drawLetter(f.E,42 ,32, c.black, c.green);
+  drawLetter(f.S,49 ,32, c.black, c.green);
+  drawLetter(f.T,56 ,32, c.black, c.green);
 
-  drawLetter(f.N2,15 ,29, c.black, c.green);
-  drawLetter(f.N0,20 ,29, c.black, c.green);
-  drawLetter(f.N2,25 ,29, c.black, c.green);
-  drawLetter(f.N6,30 ,29, c.black, c.green);
-
+  drawLetter(f.N2,10 ,18, c.black, c.green);
+  drawLetter(f.N0,17 ,18, c.black, c.green);
+  drawLetter(f.N2,24 ,18, c.black, c.green);
+  drawLetter(f.N6,31 ,18, c.black, c.green);
 
   // Reset the scene
   if(animationCount > 250) {
     animationCount = 0;
     mmCx = 61;
-    mmCy = 20;
+    mmCy = 27;
     halfsize = 3;
     rotate=0;
   }
@@ -926,13 +925,13 @@ void drawPacman(int centerX, int centerY, const struct RGB& bodyColor, const str
   drawCircle(centerX,centerY,11,bodyColor);
 
   // Draw Pacman's eye
-  drawCircle(centerX-2,centerY-6,2,bgColor);
+  drawCircle(centerX-2,centerY+6,2,bgColor);
 
   // animate the mouth
   if(mouthOpen) {
     // open mouth is a wedge since we are looking at a side view
     //drawTriangle({float(centerX-12),float(centerY-7)}, {float(centerX-12),float(centerY+7)}, {float(centerX),float(centerY)}, bgColor);
-    drawTriangle({centerX-12,centerY-7}, {centerX-12,centerY+7}, {centerX,centerY}, bgColor);
+    drawTriangle({centerX-12,centerY+7}, {centerX-12,centerY-7}, {centerX,centerY}, bgColor);
   } else {
     // Draw the closed mouth (simple horizontal line)
     drawRect(centerX-11, centerY, centerX-2, centerY, bgColor);
@@ -951,15 +950,32 @@ void drawOwl(int centerX, int centerY,  bool blink) {
   } else {
     // open eyes
   }
-  //head
-  drawEllipse(centerX, centerY+10, 10, 7, 0, c.brown);
+  // head
+  drawEllipse(centerX, centerY+8, 11, 8, 0, c.brown);
+
+  // ears
+  drawTriangle({centerX-11,centerY+10},{centerX-15,centerY+16},{centerX-3,centerY+10},c.brown); 
+  drawTriangle({centerX+11,centerY+10},{centerX+15,centerY+16},{centerX+3,centerY+10},c.brown); 
+
+  // eyes
+  drawCircle(centerX-5,centerY+8, 3, c.white);  // Left
+  drawCircle(centerX+5,centerY+8, 3, c.white);  // Right
+  drawCircle(centerX-5,centerY+8, 2, c.black);  // Left iris
+  drawCircle(centerX+5,centerY+8, 2, c.black);  // Right iris
+
+  // beak
+  drawCircle(centerX,centerY+4, 2, c.yellow); 
+  drawTriangle({centerX-1,centerY+4},{centerX,centerY+3},{centerX+1,centerY+4},c.yellow); 
 
   // body
-  drawEllipse(centerX-10, centerY+5, 5, 15, -15, c.brown);
-  drawEllipse(centerX-15, centerY+5, 5, 15, -15, c.brown);
-  drawEllipse(centerX, centerY+5, 5, 15, -15, c.brown);
-  drawEllipse(centerX+5, centerY+5, 5, 15, -15, c.brown);
-  drawEllipse(centerX+10, centerY+5, 5, 15, -15, c.brown);
+  drawEllipse(centerX-5, centerY-5, 3, 6, 15, c.brown);
+  drawEllipse(centerX-2,  centerY-5, 3, 6, 15, c.brown);
+  drawEllipse(centerX,    centerY-5, 3, 6, 15, c.brown);
+  drawEllipse(centerX+2,  centerY-5, 3, 6, 15, c.brown);
+  drawEllipse(centerX+5, centerY-5, 3, 6, 15, c.brown);
+
+  // wing
+  drawEllipse(centerX-10, centerY-5, 2, 6, -25, c.brown);
 }
 
 
@@ -974,11 +990,11 @@ void drawGhost(int centerX, int centerY, const struct RGB& bodyColor, const stru
     dY = 0;
   }
   drawCircle(centerX,centerY+dY, 5, bodyColor);  // Head
-  drawRect(centerX-5, centerY+6+dY, centerX+5, centerY+dY, bodyColor); //body
+  drawRect(centerX-5, centerY-6+dY, centerX+5, centerY+dY, bodyColor); //body
   drawCircle(centerX-2, centerY+dY, 1, eyeColor);  //left eye
   drawCircle(centerX+2, centerY+dY, 1, eyeColor);  //right eye
-  drawTriangle({centerX-2,centerY+5+dY},{centerX-3,centerY+6+dY},{centerX-1,centerY+6+dY},bgColor); //right bottom cutout
-  drawTriangle({centerX+2,centerY+5+dY},{centerX+3,centerY+6+dY},{centerX+1,centerY+6+dY},bgColor); //left bottom cutout
+  drawTriangle({centerX-2,centerY-5+dY},{centerX-3,centerY-6+dY},{centerX-1,centerY-6+dY},bgColor); //right bottom cutout
+  drawTriangle({centerX+2,centerY-5+dY},{centerX+3,centerY-6+dY},{centerX+1,centerY-6+dY},bgColor); //left bottom cutout
   writePixel(centerX-2, centerY+dY, bgColor);  //left iris
   writePixel(centerX+2, centerY+dY, bgColor);  //right iris
 }
@@ -993,8 +1009,8 @@ void drawEyeball(int centerX, int centerY, int radius, const struct RGB& eyeColo
   if(move == CENTER) { dX=0; dY = 0;}
   if(move == LEFT) { dX=-5; dY = 0;}
   if(move == RIGHT) {dX=5; dY = 0;}
-  if(move == UP) {dX=0; dY = -5;}
-  if(move == DOWN) {dX=0; dY = 5;}
+  if(move == UP) {dX=0; dY = 5;}
+  if(move == DOWN) {dX=0; dY = -5;}
 
   drawCircle(centerX,centerY, radius, fgColor);  // White of the eye
   drawCircle(centerX+dX, centerY+dY, radius/2, eyeColor);  //iris
@@ -1005,13 +1021,13 @@ void drawEyeball(int centerX, int centerY, int radius, const struct RGB& eyeColo
 //  Draw Letters.  Read fonts from graphicsFunctions.h
 //  Letters are 7x5 caps.
 //####################################################
-void drawLetter(uint8_t (*letter)[5], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor){
-  for (int col = 0; col < 5; col++) {
+void drawLetter(uint8_t (*letter)[7], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor){
+  for (int col = 0; col < 7; col++) {
     for(int row = 0; row < 7; row++) {
       if(letter[row][col] == 1) {
-        writePixel(col+llX, llY-6 + row, fgColor);
+        writePixel(col+llX, llY+6 - row, fgColor);
       } else {
-        writePixel(col+llX, llY-6 + row, bgColor);
+        writePixel(col+llX, llY+6 - row, bgColor);
       }
     }
   }
@@ -1142,8 +1158,19 @@ void drawDiamond(int centerX, int centerY, int extentX, int extentY, const struc
 //  Draw filled rect with specified  ll/ur points and color
 //##########################################################
 void drawRect(int llX, int llY, int urX, int urY, const struct RGB& color) {
+  // In case they mixed up ll/ur
+  if(llX > urX) {
+    int tmpX = llX;
+    llX = urX;
+    urX = tmpX;
+  }
+  if(llY > urY) {
+    int tmpY = llY;
+    llY = urY;
+    urY = tmpY;
+  }
   for (int col = llX; col <= urX; col++) {
-    for(int row = urY; row <= llY; row++) {
+    for(int row = llY; row <= urY; row++) {
       writePixel(col, row, color);
     }
   }

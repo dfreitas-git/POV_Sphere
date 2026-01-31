@@ -93,10 +93,14 @@ void buildColumn(uint8_t *dst, uint8_t *colPtr) {
   // Build dotStar data for each LED in the column
   for (int i = 0; i < LEDS_PER_COLUMN; ++i) {
 
+    // Invert the rows since the POV_Sphere physically has row-0 at the top but we
+    // fill the framebuffer assuming normal cartesian coords (0-+Y, 0+X from origin up, right)
+    int physRow = LEDS_PER_COLUMN-1 - i;
+
     // Extract the rgb fields for this LED row
-    uint8_t r = colPtr[i*COLUMNS*3];
-    uint8_t g = colPtr[i*COLUMNS*3+1];
-    uint8_t b = colPtr[i*COLUMNS*3+2];
+    uint8_t r = colPtr[physRow*COLUMNS*3];
+    uint8_t g = colPtr[physRow*COLUMNS*3+1];
+    uint8_t b = colPtr[physRow*COLUMNS*3+2];
 
     // Apply gamma correction
     r = gamma24[r];
