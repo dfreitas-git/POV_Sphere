@@ -7,7 +7,7 @@
 extern int brightness;               // Sphere LED brightness
 extern uint8_t fiveBitBright;        // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
 
-extern uint16_t framebufferOffset;         // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
+extern int framebufferOffset;         // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
 extern unsigned long lastScrollTime;
 extern unsigned long lastAnimateTime;     
 
@@ -105,7 +105,7 @@ constexpr int TOTAL_COLUMNS_RGB_BYTES = COLUMNS * LEDS_PER_COLUMN * 3;  // total
 constexpr int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_LED) + END_FRAME_BYTES;
 constexpr int TOTAL_COLUMNS_BYTES = COLUMNS * COLUMN_PAYLOAD;
 
-constexpr uint8_t SCROLL_UPDATE_TIME = 50;   // How often (in milliseconds) to update the framebuffer offset pointer.  Controls how fast the image scrolls around the Sphere.
+constexpr uint8_t SCROLL_UPDATE_TIME = 100;   // How often (in milliseconds) to update the framebuffer offset pointer.  Controls how fast the image scrolls around the Sphere.
 constexpr uint8_t MAX_TRIM = 2;           // The most we allow core-0 to adjust the angle being computed by core-1
 
 // Core-1 angle values calculated and pll-locked to core-0 actual angle measurements

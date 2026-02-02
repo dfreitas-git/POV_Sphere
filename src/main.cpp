@@ -64,13 +64,16 @@
 
 // Prototypes
 void uiTask(void* parameter) ;
+void graphicsTask(void* parameter) ;
+void motorTask(void* parameter) ;
 
 // For generating sync pulses to measure timing using a scope
 #define SYNC_PIN 26
 #define SYNC_MASK (1UL << SYNC_PIN)
 
-// Semaphore to be sure setup is 100% complete before we start executing loop in core-0
-SemaphoreHandle_t initDone;
+// use eventGroup to be sure setup is 100% complete before we start executing loop in core-0
+EventGroupHandle_t initEvent;
+#define INIT_DONE_BIT (1 << 0)
 
 // For driving a sync-pulse high and low
 inline void IRAM_ATTR sync_high() {
@@ -86,6 +89,8 @@ inline void IRAM_ATTR sync_low() {
 
 // for the core-0 task
 TaskHandle_t uiTaskHandle;
+TaskHandle_t graphicsTaskHandle;
+TaskHandle_t motorTaskHandle;
 
 
 //#########################################
@@ -97,8 +102,8 @@ void setup() {
  
   Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
 
-  // Create a semaphore for core-0 to use to be sure setup is complete before starting core-0 loop
-  initDone = xSemaphoreCreateBinary();
+  // Create a eventGroup for core-0 tasks to use to be sure setup is complete before starting their loops
+  initEvent = xEventGroupCreate();
 
   // Pin setup
   pinMode(RING0_ENB, OUTPUT);
@@ -164,7 +169,7 @@ void setup() {
   constexpr uint32_t base_step = AS5600_COUNTS / COLUMNS;
   nextColumnAngle = (columnIndex + 1) * base_step;
 
-  // Create tase to run on core-0 for the UI code
+  // Create task to run on core-0 for the UI code
   xTaskCreatePinnedToCore(
     uiTask,
     "UI Task",
@@ -175,87 +180,100 @@ void setup() {
     0   //  Core 0
   );
 
-  // We are done with setup.  Release the semaphore
-  xSemaphoreGive(initDone);   // LAST LINE
+  // Create task to run on core-0 for graphics generation and framebuffer filling
+  xTaskCreatePinnedToCore(
+    graphicsTask,
+    "Graphics Task",
+    4096,
+    nullptr,
+    1,
+    &graphicsTaskHandle,
+    0   //  Core 0
+  );
+
+  // Create task to run on core-0 for the motor/PLL control loop
+  xTaskCreatePinnedToCore(
+    motorTask,
+    "Motor Task",
+    4096,
+    nullptr,
+    1,
+    &motorTaskHandle,
+    0   //  Core 0
+  );
+
+  // We are done with setup.  Set the eventGroups
+  xEventGroupSetBits(initEvent, INIT_DONE_BIT);
 }
 
-//###################################################################
-// core-0 loop (where we will run all the UI and SDCard reading)
-// Task for core-0 
-//####################################################################
-void uiTask(void* parameter) {
 
-  // Be sure the setup section is complete before we start the core-0 loop
-  xSemaphoreTake(initDone, portMAX_DELAY);
+//###################################################################
+// core-0 motor control/PLL loop.   Highest priority
+//####################################################################
+void motorTask(void* parameter) {
+
+  // Be sure the setup section is complete before we start the core-0 loops
+  xEventGroupWaitBits(
+    initEvent,
+    INIT_DONE_BIT,
+    pdFALSE,   // don't clear
+    pdTRUE,    // wait for all bits (just one here)
+    portMAX_DELAY
+  );
+  
+  // Loop time for sampling the motor angle, adjusting PLL
+  const TickType_t period = pdMS_TO_TICKS(10);
+  TickType_t lastWake = xTaskGetTickCount();
+  int pidDiv = 0; // Use to run the PID update at a slower rate
+  constexpr uint8_t PID_DIVIDER = 5;
 
   for (;;) {
-
-    //sync_high();  // Debug rising edge to measure timing on a scope
-    //sync_low();  // Debug falling edge to measure timing on a scope
-
     // Periodically measure the shaft angle for motor rpm/PID control and core-1 PLL locking
     uint32_t now = micros();
     int angleDelta;
-    if (now - lastMeasuredTime >= samplePeriod_us) {
 
-      // Go do a shaft angle measurement so core-1 angle-calculating "pll" can lock to it. 
-      measuredAngle = as5600.getRawAngle();
+    // Go do a shaft angle measurement so core-1 angle-calculating "pll" can lock to it. 
+    measuredAngle = as5600.getRawAngle();
 
-      // When we get a new actual shaft-angle measurement, use it to adjust our core-1 computed angle to eliminate any drift
-      phase_error = measuredAngle - angle_q;
+    // When we get a new actual shaft-angle measurement, use it to adjust our core-1 computed angle to eliminate any drift
+    phase_error = measuredAngle - angle_q;
 
-      // Takes care of case where we cross the 360 degree back to 0 degree boundary
-      if (phase_error > 2048)  phase_error -= AS5600_COUNTS;
-      if (phase_error < -2048) phase_error += AS5600_COUNTS;
+    // Takes care of case where we cross the 360 degree back to 0 degree boundary
+    if (phase_error > 2048)  phase_error -= AS5600_COUNTS;
+    if (phase_error < -2048) phase_error += AS5600_COUNTS;
 
-      // Angle error less than this and we won't apply any more correction to the VCO
-      if (abs(long(phase_error)) < PHASE_DEADBAND){
-        phase_error = 0;
-      }
-
-      // Small proportional-only correction in frequency to keep angle in sync 
-      omega_trim = (phase_error << OMEGA_SHIFT) / OMEGA_TRIM_PERIOD;
-
-      // Limit the trim amount
-      omega_trim = constrain(omega_trim, -MAX_TRIM, MAX_TRIM);
-
-      // Check the motor speed
-      angleDelta = measuredAngle - lastAngle;
-  
-      // Takes care of case where we cross the 360 degree back to 0 degree boundary
-      if (angleDelta > 2048)  angleDelta -= AS5600_COUNTS;
-      if (angleDelta < -2048) angleDelta += AS5600_COUNTS;
-  
-      // Compute rpm by measuring the angle Delta between polling
-      float dt_s = (now - lastMeasuredTime) * 1e-6;
-      motorRPM = (angleDelta * 60.0) / ((AS5600_COUNTS * 1.0) * dt_s);
-
-      // Compute the shaft speed that will be used by core-1 to calculate the shaft angle
-      // omega_ff is in angle-counts/us  (scaled up by OMEGA_SHIFT for integer math.)
-      omega_ff = int32_t(((motorRPM * pow(2,OMEGA_SHIFT)/ 60) * AS5600_COUNTS) / 1000000);
-
-      /*
-      if(motorOnOffFlag) {
-        Serial.printf("RPM: %.1f  now: %d   lastMeasuredTime: %d   dt_s: %.4f  angleDelta: %d  measuredAngle: %d\n", motorRPM, now, lastMeasuredTime,dt_s, angleDelta, measuredAngle);
-      }
-      */
-
-      lastAngle = measuredAngle;
-      lastMeasuredTime = now;
+    // Angle error less than this and we won't apply any more correction to the VCO
+    if (abs(long(phase_error)) < PHASE_DEADBAND){
+      phase_error = 0;
     }
-  
-    // Rotates the image by shifting the index into the framebuffer
-    unsigned long curMillis = millis();
-    if(scrollOnOffFlag &&  curMillis - lastScrollTime > SCROLL_UPDATE_TIME) {
-      framebufferOffset--;  // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
-      if(framebufferOffset < 0) {
-        framebufferOffset = COLUMNS - 1;
-      }
-      lastScrollTime=curMillis;
-    }
-    
+
+    // Small proportional-only correction in frequency to keep angle in sync 
+    omega_trim = (phase_error << OMEGA_SHIFT) / OMEGA_TRIM_PERIOD;
+
+    // Limit the trim amount
+    omega_trim = constrain(omega_trim, -MAX_TRIM, MAX_TRIM);
+
+    // Check the motor speed
+    angleDelta = measuredAngle - lastAngle;
+
+    // Takes care of case where we cross the 360 degree back to 0 degree boundary
+    if (angleDelta > 2048)  angleDelta -= AS5600_COUNTS;
+    if (angleDelta < -2048) angleDelta += AS5600_COUNTS;
+
+    // Compute rpm by measuring the angle Delta between polling
+    float dt_s = (now - lastMeasuredTime) * 1e-6;
+    motorRPM = (angleDelta * 60.0) / ((AS5600_COUNTS * 1.0) * dt_s);
+
+    // Compute the shaft speed that will be used by core-1 to calculate the shaft angle
+    // omega_ff is in angle-counts/us  (scaled up by OMEGA_SHIFT for integer math.)
+    omega_ff = int32_t(((motorRPM * pow(2,OMEGA_SHIFT)/ 60) * AS5600_COUNTS) / 1000000);
+
+    lastAngle = measuredAngle;
+    lastMeasuredTime = now;
+
     //  PID speed regulation
-    if (curMillis - lastPidMs > PID_UPDATE_TIME) {
+    if (++pidDiv >= PID_DIVIDER) {
+      pidDiv = 0;
       float pwm = updatePID(motorRPM, targetRPM);
   
       // See if the user wants the motor off
@@ -265,7 +283,72 @@ void uiTask(void* parameter) {
         ledcWrite(0, (int)pwm);
       }
     }
-    // Now go check the encoder/switch for user input
+    // Need to throttle the motor loop so other tasks can execute too
+    vTaskDelayUntil(&lastWake, period); // scheduling point
+  }
+}
+
+//###################################################################
+// core-0 graphics generation, framebuffer filling.  Medium priority
+//####################################################################
+void graphicsTask(void* parameter) {
+
+  // Be sure the setup section is complete before we start the core-0 loops
+  xEventGroupWaitBits(
+    initEvent,
+    INIT_DONE_BIT,
+    pdFALSE,   // don't clear
+    pdTRUE,    // wait for all bits (just one here)
+    portMAX_DELAY
+  );
+
+  const TickType_t framePeriod = pdMS_TO_TICKS(16); // ~60 Hz
+  TickType_t lastWake = xTaskGetTickCount();
+
+  for (;;) {
+
+    // Rotates the image by shifting the index into the framebuffer
+    uint32_t curMillis = millis();
+    if(scrollOnOffFlag &&  curMillis - lastScrollTime > SCROLL_UPDATE_TIME) {
+
+      // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
+      framebufferOffset = (framebufferOffset - 1 + COLUMNS) % COLUMNS;
+      lastScrollTime=curMillis;
+    }
+
+    // Global brightness: 0b111xxxxx (5-bit current control)
+    // Read the brightness setting (can be changed in the OLED menu)  Map to 0-1F
+    fiveBitBright = map(brightness,0,10,0,31);
+
+    // Load the backBuffer with the next frame to display
+    if (!backBufferFilled) {
+      imageTable[imageToDisplayIndex]->functionPtr();
+      backBufferFilled = true;
+      lastAnimateTime = millis();
+      //Serial.println("Filled backbuffer");
+    }
+    // Need to throttle the task so other tasks have a chance to work
+    vTaskDelayUntil(&lastWake, framePeriod);
+  }
+}
+
+//###################################################################
+// core-0 UI task.   Lowest priority
+//####################################################################
+void uiTask(void* parameter) {
+
+  // Be sure the setup section is complete before we start the core-0 loops
+  xEventGroupWaitBits(
+  initEvent,
+  INIT_DONE_BIT,
+  pdFALSE,   // don't clear
+  pdTRUE,    // wait for all bits (just one here)
+  portMAX_DELAY
+);
+
+  for (;;) {
+
+    // Go check the encoder/switch for user input
     int encoderDelta = encoder.getValue();
     if (encoderDelta != 0) {
       handleRotation(encoderDelta);
@@ -282,17 +365,9 @@ void uiTask(void* parameter) {
     // Update the OLED
     updateBlink();
     drawMenu();
-
-    // Global brightness: 0b111xxxxx (5-bit current control)
-    // Read the brightness setting (can be changed in the OLED menu)  Map to 0-1F
-    fiveBitBright = map(brightness,0,10,0,31);
-
-    // Load the backBuffer with the next frame to display
-    if (!backBufferFilled) {
-      imageTable[imageToDisplayIndex]->functionPtr();
-      backBufferFilled = true;
-      lastAnimateTime = millis();
-    }
+    //Serial.println("Updated OLED");
+    // Need to throttle the UI loop so other tasks have time to execute
+    vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz UI scan
   }
 }
 
@@ -301,6 +376,9 @@ void uiTask(void* parameter) {
 // Main Loop for core-1. Core-1 will run the critical POV data DMA loop.
 //#########################################################################
 void loop() {
+
+  //sync_high();  // Debug rising edge to measure timing on a scope
+  //sync_low();  // Debug falling edge to measure timing on a scope
 
   // Make a local copy of the shaft speed that core-0 measured.
   core_1_omega_ff = omega_ff;      // local copies used by core-1.
@@ -314,7 +392,6 @@ void loop() {
   int32_t triggerPoint = adjustedAngle - nextColumnAngle;
   if(triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
   if(triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
-
 
   // Once the current angle has reached the next column, trigger a DMA transfer if the backBuffer is ready with a new frame
   if(triggerPoint >= 0) {

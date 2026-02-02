@@ -4,7 +4,7 @@
 int brightness = 3;               // Sphere LED brightness
 uint8_t fiveBitBright;            // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
 
-uint16_t framebufferOffset=0;         // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
+int framebufferOffset=0;         // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
 unsigned long lastScrollTime;
 unsigned long lastAnimateTime;     
 

@@ -865,17 +865,15 @@ void fillBB_pinecrest() {
   // the owl
   bool blink = true;
   bool squawk = true;
-  if(animationCount < mmStart+125 || animationCount >= mmStart+160) {
+  if(animationCount < mmStart+125) {
     drawOwl(100,25,!blink,!squawk);
-  } else if(animationCount >= mmStart+125 && animationCount < mmStart+130) {
+  } else if(animationCount >= mmStart+125 && animationCount < mmStart+155) {
     drawOwl(100,25,!blink,squawk);
-  } else if(animationCount >= mmStart+130 && animationCount < mmStart+145) {
-    drawOwl(100,25,!blink,squawk);
-  } else if(animationCount >= mmStart+145 && animationCount < mmStart+150) {
-    drawOwl(100,25,blink,squawk);
-  } else if(animationCount >= mmStart+150 && animationCount < mmStart+155) {
-    drawOwl(100,25,!blink,squawk);
-  } else if(animationCount >= mmStart+155 && animationCount < mmStart+160) {
+  } else if(animationCount >= mmStart+155 && animationCount < mmStart+170) {
+    drawOwl(100,25,!blink,!squawk);
+  } else if(animationCount >= mmStart+170 && animationCount < mmStart+175) {
+    drawOwl(100,25,blink,!squawk);
+  } else if(animationCount >= mmStart+175) {
     drawOwl(100,25,!blink,!squawk);
   }
 
@@ -992,6 +990,14 @@ void drawOwl(int centerX, int centerY,  bool blink, bool squawk) {
     drawEllipse(centerX+5, centerY+8,4,3,0,c.white);
     drawCircle(centerX-5,centerY+8, 2, c.black);  // Left iris
     drawCircle(centerX+5,centerY+8, 2, c.black);  // Right iris
+  }
+  // eyebrows  (raise them when squawking)
+  if(squawk) {
+    drawArc({centerX-8,centerY+13},{centerX-5,centerY+15},{centerX-2,centerY+13},1,c.yellow);
+    drawArc({centerX+9,centerY+13},{centerX+6,centerY+15},{centerX+3,centerY+13},1,c.yellow);
+  } else {
+    drawArc({centerX-8,centerY+11},{centerX-5,centerY+13},{centerX-2,centerY+11},1,c.yellow);
+    drawArc({centerX+9,centerY+11},{centerX+6,centerY+13},{centerX+3,centerY+11},1,c.yellow);
   }
 
   // beak
