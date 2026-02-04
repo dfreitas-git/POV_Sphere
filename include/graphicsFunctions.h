@@ -13,6 +13,41 @@ struct RGB { uint8_t r, g, b; };
 // eyeball movement enum
 enum EYEBALL_MOVE { LEFT, RIGHT, UP, DOWN, CENTER };
 
+// Pinecrest owl structs
+const uint32_t BLINK_DURATION_MS = 200;   // visible owl blink
+
+enum OwlEventType {
+  OWL_BLINK,
+  OWL_SQUAWK_ON,
+  OWL_SQUAWK_OFF
+};
+
+struct OwlEvent {
+  uint32_t timeMs;     // relative to scene start
+  OwlEventType type;
+};
+
+struct OwlTimeline {
+    uint32_t tSquawkOn;
+    uint32_t tSquawkOff;
+    uint32_t tBlinkOn;
+    uint32_t tBlinkOff;
+  };
+
+  struct OwlAnimState {
+    bool squawking;
+    bool blinkActive;
+    uint32_t blinkStartTime;
+    uint32_t squawkStartTime;
+  };
+
+  static OwlAnimState owl = {
+    .squawking = false,
+    .blinkActive = false,
+    .blinkStartTime = 0,
+    .squawkStartTime = 0
+  };
+
 // Struct to hold the color definitions
 struct palette { 
     RGB white = {255,255,255};

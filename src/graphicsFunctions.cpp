@@ -757,8 +757,24 @@ void fillBB_eyeball() {
   }
 }
 
+//###############################################################################
+//############# Helper functions for the Pinecrest animation ###################
+//###############################################################################
+
+//######## rendering the owl blink #############
+bool renderBlink(uint32_t now) {
+  if (!owl.blinkActive) return false;
+
+  uint32_t elapsed = now - owl.blinkStartTime;
+  if (elapsed >= BLINK_DURATION_MS) {
+    owl.blinkActive = false;
+    return false;
+  }
+  return true;  // eyes closed (or partially, if you interpolate)
+}
+
 //#############################
-//  Animated Marshmallow Roast
+//  Animated Pincrest Scene
 //#############################
 void fillBB_pinecrest() {
 
@@ -766,16 +782,26 @@ void fillBB_pinecrest() {
   static palette c;
   RGB flames[] = {c.red,c.yellow};
 
+  static uint32_t sceneStartTime = 0;
+  static bool timelineInitialized = false;
+
   // Use time to control the animation
   uint32_t now = millis();
   static uint32_t lastTick = 0;
   static uint32_t animationCount = 0;
+  const int tickPeriod = 50;
 
   // Base animation clock (fastest tick)
-  if (now - lastTick >= 50) {
-      uint32_t ticks = (now - lastTick) / 50;
+  if (now - lastTick >= tickPeriod) {
+      uint32_t ticks = (now - lastTick) / tickPeriod;
       animationCount += ticks;
-      lastTick += ticks * 50;
+      lastTick += ticks * tickPeriod;
+  }
+
+  // Start the scene time
+  if (!timelineInitialized) {
+    sceneStartTime = now;
+    timelineInitialized = true;
   }
 
   // Fill the background
@@ -862,20 +888,52 @@ void fillBB_pinecrest() {
     drawArc({mmCx,39},{mmCx-2,42},{mmCx,45},1,c.white);
   }
 
+
   // the owl
-  bool blink = true;
-  bool squawk = true;
-  if(animationCount < mmStart+125) {
-    drawOwl(100,25,!blink,!squawk);
-  } else if(animationCount >= mmStart+125 && animationCount < mmStart+155) {
-    drawOwl(100,25,!blink,squawk);
-  } else if(animationCount >= mmStart+155 && animationCount < mmStart+170) {
-    drawOwl(100,25,!blink,!squawk);
-  } else if(animationCount >= mmStart+170 && animationCount < mmStart+175) {
-    drawOwl(100,25,blink,!squawk);
-  } else if(animationCount >= mmStart+175) {
-    drawOwl(100,25,!blink,!squawk);
+  // define what time events should trigger when
+  const OwlEvent owlTimeline[] = {
+    // blink
+    { 4000, OWL_BLINK },
+
+    // squawk
+    { 7000, OWL_SQUAWK_ON },
+    { 8500, OWL_SQUAWK_OFF },
+  
+    // blink
+    { 10000, OWL_BLINK },
+  
+  };
+  constexpr size_t OWL_EVENT_COUNT = sizeof(owlTimeline) / sizeof(owlTimeline[0]);
+
+  // Update owl events state based on time (edge triggered, not time windows)
+  static size_t owlNextEvent = 0;
+  uint32_t sceneElapsed = now - sceneStartTime;
+  
+  while (owlNextEvent < OWL_EVENT_COUNT && sceneElapsed >= owlTimeline[owlNextEvent].timeMs) {
+    switch (owlTimeline[owlNextEvent].type) {
+      case OWL_BLINK:
+        owl.blinkActive = true;
+        owl.blinkStartTime = now;
+        break;
+  
+      case OWL_SQUAWK_ON:
+        owl.squawking = true;
+        owl.squawkStartTime = now;
+        break;
+  
+      case OWL_SQUAWK_OFF:
+        owl.squawking = false;
+        break;
+    }
+  
+    owlNextEvent++;
   }
+  
+  // Now draw the owl given the state and time we are at
+  bool blink  = renderBlink(now);
+  bool squawk = owl.squawking;
+  drawOwl(100, 25, blink, squawk);
+
 
   // PINECREST
   font_7x7 f;
@@ -895,13 +953,15 @@ void fillBB_pinecrest() {
   drawLetter(f.N6,31 ,18, c.black, c.green);
 
   // Reset the scene
-  if(animationCount > 200) {
+  if(animationCount > 250) {
     animationCount = 0;
     mmCx = 61;
     mmCy = 27;
     halfsize = 3;
     rotate=0;
     mmColor=c.white;
+    timelineInitialized = false;
+    owlNextEvent = 0;
   }
 }
 
@@ -969,7 +1029,6 @@ void drawPacman(int centerX, int centerY, const struct RGB& bodyColor, const str
 //  Draw Owl
 //######################
 void drawOwl(int centerX, int centerY,  bool blink, bool squawk) {
-  int dY;
   palette c;  // Get color palette
 
   // head

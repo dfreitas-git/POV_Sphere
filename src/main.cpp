@@ -222,7 +222,8 @@ void motorTask(void* parameter) {
   );
   
   // Loop time for sampling the motor angle, adjusting PLL
-  const TickType_t period = pdMS_TO_TICKS(10);
+  //const TickType_t period = pdMS_TO_TICKS(10);
+  const TickType_t period = pdMS_TO_TICKS(7);  // had to lower it to eliminate Sphere angluar drift
   TickType_t lastWake = xTaskGetTickCount();
   int pidDiv = 0; // Use to run the PID update at a slower rate
   constexpr uint8_t PID_DIVIDER = 5;
