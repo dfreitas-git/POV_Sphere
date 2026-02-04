@@ -773,6 +773,30 @@ bool renderBlink(uint32_t now) {
   return true;  // eyes closed (or partially, if you interpolate)
 }
 
+void updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* timeline, size_t eventCount, size_t& owlNextEvent) {
+  uint32_t sceneElapsed = now - sceneStartTime;
+  
+  while (owlNextEvent < eventCount && sceneElapsed >= timeline[owlNextEvent].timeMs) {
+    switch (timeline[owlNextEvent].type) {
+      case OWL_BLINK:
+        owl.blinkActive = true;
+        owl.blinkStartTime = now;
+        break;
+  
+      case OWL_SQUAWK_ON:
+        owl.squawking = true;
+        owl.squawkStartTime = now;
+        break;
+  
+      case OWL_SQUAWK_OFF:
+        owl.squawking = false;
+        break;
+    }
+  
+    owlNextEvent++;
+  }
+}
+  
 //#############################
 //  Animated Pincrest Scene
 //#############################
@@ -888,47 +912,20 @@ void fillBB_pinecrest() {
     drawArc({mmCx,39},{mmCx-2,42},{mmCx,45},1,c.white);
   }
 
-
   // the owl
   // define what time events should trigger when
   const OwlEvent owlTimeline[] = {
-    // blink
     { 4000, OWL_BLINK },
-
-    // squawk
     { 7000, OWL_SQUAWK_ON },
     { 8500, OWL_SQUAWK_OFF },
-  
-    // blink
     { 10000, OWL_BLINK },
-  
   };
   constexpr size_t OWL_EVENT_COUNT = sizeof(owlTimeline) / sizeof(owlTimeline[0]);
 
   // Update owl events state based on time (edge triggered, not time windows)
   static size_t owlNextEvent = 0;
-  uint32_t sceneElapsed = now - sceneStartTime;
-  
-  while (owlNextEvent < OWL_EVENT_COUNT && sceneElapsed >= owlTimeline[owlNextEvent].timeMs) {
-    switch (owlTimeline[owlNextEvent].type) {
-      case OWL_BLINK:
-        owl.blinkActive = true;
-        owl.blinkStartTime = now;
-        break;
-  
-      case OWL_SQUAWK_ON:
-        owl.squawking = true;
-        owl.squawkStartTime = now;
-        break;
-  
-      case OWL_SQUAWK_OFF:
-        owl.squawking = false;
-        break;
-    }
-  
-    owlNextEvent++;
-  }
-  
+  updateOwlEvents(now, sceneStartTime,owlTimeline,OWL_EVENT_COUNT, owlNextEvent);
+
   // Now draw the owl given the state and time we are at
   bool blink  = renderBlink(now);
   bool squawk = owl.squawking;

@@ -87,6 +87,7 @@ struct Vec2 {
 // Counter that holds the number of times we ever tried to write a pixel outside the framebuffer bounds
 static uint32_t outOfBoundsPixelCount = 0;
 
+// prototypes
 void writePixel(int col, int row, const struct RGB& color);
 void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, const struct RGB& color);
 void drawLetter(uint8_t (*letter)[7], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor);
@@ -102,6 +103,8 @@ void drawDiamond(int centerX, int centerY, int extentX, int extentY, const struc
 void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct RGB& color);
 float cross(const Vec2& a, const Vec2& b, const Vec2& c);
 void drawGhost(int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool floatUp);
+bool renderBlink(uint32_t now);
+void updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* timeline, size_t eventCount, size_t& owlNextEvent);
 void drawOwl(int centerX, int centerY, bool blink, bool squawk);
 void drawPacman(int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen);
 void drawEyeball(int centerX, int centerY, int radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, int move );
