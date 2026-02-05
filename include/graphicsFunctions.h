@@ -7,52 +7,6 @@
 #include <globals.h>
 #include <math.h>
 
-
-
-//#################################
-// eyeball movement enum
-//#################################
-enum EYEBALL_MOVE { LEFT, RIGHT, UP, DOWN, CENTER };
-
-
-//#################################
-// Pinecrest owl structs
-//#################################
-const uint32_t BLINK_DURATION_MS = 200;   // visible owl blink
-
-enum OwlEventType {
-  OWL_BLINK,
-  OWL_SQUAWK_ON,
-  OWL_SQUAWK_OFF
-};
-
-struct OwlEvent {
-  uint32_t timeMs;     // relative to scene start
-  OwlEventType type;
-};
-
-struct OwlTimeline {
-    uint32_t tSquawkOn;
-    uint32_t tSquawkOff;
-    uint32_t tBlinkOn;
-    uint32_t tBlinkOff;
-  };
-
-  struct OwlAnimState {
-    bool squawking;
-    bool blinkActive;
-    uint32_t blinkStartTime;
-    uint32_t squawkStartTime;
-  };
-
-  static OwlAnimState owl = {
-    .squawking = false,
-    .blinkActive = false,
-    .blinkStartTime = 0,
-    .squawkStartTime = 0
-  };
-
-
 //#################################
 // Color definitions
 //#################################
@@ -61,27 +15,29 @@ struct RGB { uint8_t r, g, b; };
 
 // Struct to hold the color definitions
 struct palette { 
-    RGB white = {255,255,255};
-    RGB gray  = {128,128,128};
-    RGB mediumgray = {96,96,96};
-    RGB darkgray  = {64,64,64};
-    RGB red   = {255,0,0};
-    RGB meduimred   = {128,0,0};
-    RGB darkred   = {64,0,0};
-    RGB green = {0,255,0};
-    RGB mediumgreen = {0,128,0};
-    RGB darkgreen = {0,64,0};
-    RGB limegreen = {64,102,0};
-    RGB olivegreen = {64,80,0};
+    RGB black  = {0,0,0};
     RGB blue  = {0,0,255};
-    RGB mediumblue  = {0,0,128};
+    RGB brown  = {102,51,64};
     RGB darkblue  = {0,0,64};
-    RGB yellow = {255,150,0};
+    RGB darkgray  = {64,64,64};
+    RGB darkgreen = {0,64,0};
+    RGB darkred   = {64,0,0};
+    RGB gray  = {128,128,128};
+    RGB green = {0,255,0};
+    RGB lightbrown  = {255,159,127};
+    RGB lightgray = {192,192,192};
+    RGB limegreen = {64,102,0};
+    RGB mediumblue  = {0,0,128};
+    RGB mediumgray = {96,96,96};
+    RGB mediumgreen = {0,128,0};
+    RGB meduimred   = {128,0,0};
+    RGB olivegreen = {64,80,0};
     RGB orange = {255,159,0};
     RGB pink   = {255,192,203}; 
     RGB purple = {128,0,128};
-    RGB brown  = {102,51,64};
-    RGB black  = {0,0,0};
+    RGB red   = {255,0,0};
+    RGB white = {255,255,255};
+    RGB yellow = {255,150,0};
 };
 
 constexpr RGB spiralColors[] = {
@@ -113,12 +69,98 @@ struct Vec2 {
     int x, y;
 };
 
+//#################################
+// eyeball movement enum
+//#################################
+enum EYEBALL_MOVE { LEFT, RIGHT, UP, DOWN, CENTER };
+
+
+//#################################
+// Pinecrest campground animation
+//#################################
+
+// owl structs
+const uint32_t BLINK_DURATION_MS = 200;   // visible owl blink
+
+enum OwlEventType {
+  OWL_BLINK,
+  OWL_SQUAWK_ON,
+  OWL_SQUAWK_OFF
+};
+
+struct OwlEvent {
+  uint32_t timeMs;     // relative to scene start
+  OwlEventType type;
+};
+
+struct OwlAnimState {
+  bool squawking;
+  bool blinkActive;
+  uint32_t blinkStartTime;
+  uint32_t squawkStartTime;
+};
+
+static OwlAnimState owl = {
+  .squawking = false,
+  .blinkActive = false,
+  .blinkStartTime = 0,
+  .squawkStartTime = 0
+};
+
+
+// Marshmallow structs
+enum MarshmallowEventType {
+  MM_START_ROASTING,
+  MM_START_TOASTING,
+  MM_START_MELTING,
+  MM_START_DROPPING,
+  MM_START_BURNING
+};
+
+enum MarshmallowPhase {
+  MM_RAW,
+  MM_TOASTING,
+  MM_MELTING,
+  MM_DROPPING,
+  MM_BURNT
+};
+
+struct MarshmallowEvent {
+  uint32_t timeMs;     // relative to scene start
+  MarshmallowEventType type;
+};
+
+struct MarshmallowState {
+  MarshmallowPhase phase;
+  uint32_t phaseStartTime;
+
+  // base pose
+  float cx, cy;
+  float rotation;
+  float halfSize;
+  RGB color;
+};
+
+static MarshmallowState  mm = {
+  .phase = MM_RAW,
+  .phaseStartTime = 0,
+  .cx = 66, .cy = 26,
+  .rotation = 0,
+  .halfSize = 3,
+  .color = {0,0,0}
+};
+
+
+
+
 // Counter that holds the number of times we ever tried to write a pixel outside the framebuffer bounds
 static uint32_t outOfBoundsPixelCount = 0;
 
 //#################################
 // prototypes
 //#################################
+float lerp(float a, float b, float f);
+float clamp(float val, float minVal, float maxVal);
 void writePixel(int col, int row, const struct RGB& color);
 void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, const struct RGB& color);
 void drawLetter(uint8_t (*letter)[7], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor);

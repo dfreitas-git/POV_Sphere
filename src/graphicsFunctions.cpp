@@ -8,6 +8,28 @@
 // iterate across the available rows/columns and compute those pixels (basically a coarse
 // mapping of the sphere data to the sparse LED matrix overlayed onto it).
 
+
+// generally helpful utility functions
+
+// linear interpolation.  Return number between a and b.  f is interpolation factor between 0 and 1.0.
+float lerp(float a, float b, float f) {
+    return a + f * (b - a);
+}
+
+// clamp  For clamping a number between two ranges
+float clamp(float val, float minVal, float maxVal) {
+  if(val - minVal < .01) {
+    return minVal;
+  } else if(val - maxVal > .01) {
+    return maxVal;
+  } else {
+    return val;
+  }
+}
+
+
+
+
 //###################################################################
 // Fill the backbuffer in preperation for the next displayed frame
 // Assumes a 120x48 image imported from Gimp in rgb565 format (two
@@ -773,7 +795,9 @@ bool renderBlink(uint32_t now) {
   return true;  // eyes closed (or partially, if you interpolate)
 }
 
+//#########  Edge based state update based on what time we have reached
 void updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* timeline, size_t eventCount, size_t& owlNextEvent) {
+
   uint32_t sceneElapsed = now - sceneStartTime;
   
   while (owlNextEvent < eventCount && sceneElapsed >= timeline[owlNextEvent].timeMs) {
@@ -792,10 +816,122 @@ void updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* time
         owl.squawking = false;
         break;
     }
-  
     owlNextEvent++;
   }
 }
+
+//########## rendering for each of the marshmallow phases #############
+// Just sit there on the stick
+void renderRaw(uint32_t t, palette& colors) {
+    mm.rotation = 0;
+    mm.cy       = 26;
+    mm.halfSize = 2;
+    mm.color    = colors.white;
+}
+
+// Strart toasting - turn brown
+void renderToasting(uint32_t t, palette& colors) {
+    float u = clamp(t / 2000.0f, 0, 1);   // 2.0 seconds toasting
+    mm.rotation = lerp(0,20,u);
+    mm.cy       = 26;
+    mm.halfSize = 2;
+    //mm.color    = lerpColor(c.white, c.lightbrown, u);
+    mm.color    = colors.lightbrown;
+}
+
+// Strart melting/dropping
+void renderMelting(uint32_t t, palette& colors) {
+    float u = clamp(t / 3000.0f, 0, 1.0);   // 3.0 seconds melt
+    mm.rotation = lerp(20,45,u);
+    mm.cy = lerp(26,24,u);
+    mm.halfSize = 2;
+    //mm.color    = lerpColor(c.lightbrown, c.brown, u);
+    mm.color    = colors.brown;
+}
+
+// Drop into the file
+void renderDropping(uint32_t t, palette& colors) {
+    float u = clamp(t / 1000.0f, 0, 1.0);   // 1.0 seconds drop
+    mm.cy = lerp(24,18,u);
+    mm.rotation = 45;
+    mm.halfSize = 2;
+    //mm.color    = lerpColor(c.brown, c.darkgray, u);
+    mm.color    = colors.darkgray;
+}
+// Burned sitting in the fire
+void renderBurnt(uint32_t t, palette& colors) {
+    float u = clamp(t / 1000.0f, 0, 1.0);   // 1.0 seconds final drop and burn
+    mm.cy = lerp(18,10,u);
+    mm.rotation = 45;
+    mm.halfSize = 2;
+    //mm.color    = lerpColor(c.darkgray, c.black, u);
+    mm.color    = colors.black;
+}
+
+//#########  Edge triggered transition state change based on what time we reach
+void updateMarshmallowEvents(uint32_t now, uint32_t sceneStartTime, const MarshmallowEvent* mmTimeline, size_t eventCount, size_t& mmNextEvent, palette& colors) {
+
+  uint32_t sceneElapsed = now - sceneStartTime;
+
+  while (mmNextEvent < eventCount && sceneElapsed >= mmTimeline[mmNextEvent].timeMs) {
+    switch (mmTimeline[mmNextEvent].type) {
+        case MM_START_ROASTING:
+          mm.phase = MM_RAW;
+          mm.phaseStartTime = now;
+        break;
+
+        case MM_START_TOASTING:
+          mm.phase = MM_TOASTING;
+          mm.phaseStartTime = now;
+        break;
+
+        case MM_START_MELTING:
+          mm.phase = MM_MELTING;
+          mm.phaseStartTime = now;
+        break;
+
+        case MM_START_DROPPING:
+          mm.phase = MM_DROPPING;
+          mm.phaseStartTime = now;
+        break;
+
+        case MM_START_BURNING:
+          mm.phase = MM_BURNT;
+          mm.phaseStartTime = now;
+        break;
+    }
+    mmNextEvent++;
+  }
+}
+
+// Call the rendering functions based on what state we are in
+void renderMarshmallow(uint32_t now, uint32_t sceneStartTime, const MarshmallowEvent* mmTimeline, size_t eventCount, size_t& mmNextEvent, palette& colors) {
+    uint32_t phaseElapsed = now - mm.phaseStartTime;
+
+    switch (mm.phase) {
+        case MM_RAW:
+            renderRaw(phaseElapsed, colors);
+            break;
+
+        case MM_TOASTING:
+            renderToasting(phaseElapsed,colors);
+            break;
+
+        case MM_MELTING:
+            renderMelting(phaseElapsed,colors);
+            break;
+
+        case MM_DROPPING:
+            renderDropping(phaseElapsed,colors);
+            break;
+
+        case MM_BURNT:
+            renderBurnt(phaseElapsed,colors);
+            break;
+    }
+}
+
+
   
 //#############################
 //  Animated Pincrest Scene
@@ -811,16 +947,6 @@ void fillBB_pinecrest() {
 
   // Use time to control the animation
   uint32_t now = millis();
-  static uint32_t lastTick = 0;
-  static uint32_t animationCount = 0;
-  const int tickPeriod = 50;
-
-  // Base animation clock (fastest tick)
-  if (now - lastTick >= tickPeriod) {
-      uint32_t ticks = (now - lastTick) / tickPeriod;
-      animationCount += ticks;
-      lastTick += ticks * tickPeriod;
-  }
 
   // Start the scene time
   if (!timelineInitialized) {
@@ -846,71 +972,25 @@ void fillBB_pinecrest() {
   // roasting stick
   drawLine(67,25,90,18,1,c.gray);  
 
-  // Marshmallow starts out square, then melts and drops into the fire
-  static int mmCx;
-  static int mmCy;
-  static int rotate;
-  static int halfsize;
-  static RGB mmColor = c.white;
+  // The marshmallow
+  // define what time events should trigger when
+  const MarshmallowEvent mmTimeline[] = {
+    { 1000, MM_START_ROASTING },
+    { 2500, MM_START_TOASTING },
+    { 4500, MM_START_MELTING },
+    { 7500, MM_START_DROPPING },
+    { 8500, MM_START_BURNING },
+  };
+  constexpr size_t MM_EVENT_COUNT = sizeof(mmTimeline) / sizeof(mmTimeline[0]);
 
-  static int mmStart = 50;
-  if(animationCount < mmStart) {
-    mmCx = 66; mmCy = 27; rotate= 0;  halfsize= 3;
-  } else if(animationCount >= mmStart && animationCount < mmStart+10) {
-    mmCx = 66; mmCy = 26; rotate= 5;  halfsize= 3;
-  } else if(animationCount >= mmStart+10 && animationCount < mmStart+20) {
-    mmCx = 66; mmCy = 26; rotate= 10; halfsize= 3;
-  } else if(animationCount >= mmStart+20 && animationCount < mmStart+30) {
-    mmCx = 66; mmCy = 26; rotate= 14; halfsize= 3;
-  } else if(animationCount >= mmStart+30 && animationCount < mmStart+40) {
-    mmCx = 66; mmCy = 25; rotate= 18; halfsize= 3;
-  } else if(animationCount >= mmStart+40 && animationCount < mmStart+50) {
-    mmCx = 66; mmCy = 25; rotate= 25; halfsize= 3;
-  } else if(animationCount >= mmStart+50 && animationCount < mmStart+60) {
-    mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
-  } else if(animationCount >= mmStart+60 && animationCount < mmStart+70) {
-    mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
-  } else if(animationCount >= mmStart+70 && animationCount < mmStart+80) {
-    mmCx = 66; mmCy = 24; rotate= 25; halfsize= 3;
-  } else if(animationCount >= mmStart+80 && animationCount < mmStart+90) {
-    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2; mmColor=c.brown;
-  } else if(animationCount >= mmStart+90 && animationCount < mmStart+100) {
-    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2; mmColor=c.brown;
-  } else if(animationCount >= mmStart+100 && animationCount < mmStart+106) {
-    mmCx = 66; mmCy = 23; rotate= 47; halfsize= 2; mmColor=c.brown;
-  } else if(animationCount >= mmStart+106 && animationCount < mmStart+111) {
-    mmCx = 66; mmCy = 22; rotate= 47; halfsize= 2; mmColor=c.brown;
-  } else if(animationCount >= mmStart+111 && animationCount < mmStart+116) {
-    mmCx = 66; mmCy = 20; rotate= 47; halfsize= 2; mmColor=c.brown;
-  } else if(animationCount >= mmStart+116 && animationCount < mmStart+121) {
-    mmCx = 66; mmCy = 18; rotate= 47; halfsize= 2; mmColor=c.darkgray;
-  } else if(animationCount >= mmStart+121 && animationCount < mmStart+124) {
-    mmCx = 66; mmCy = 16; rotate= 47; halfsize= 2; mmColor=c.darkgray;
-  } else if(animationCount >= mmStart+124 && animationCount < mmStart+127) {
-    mmCx = 66; mmCy = 15; rotate= 47; halfsize= 2; mmColor=c.darkgray;
-  } else if(animationCount >= mmStart+127 && animationCount < mmStart+130) {
-    mmCx = 66; mmCy = 14; rotate= 47; halfsize= 2; mmColor=c.darkgray;
-  } else if(animationCount >= mmStart+130 && animationCount < mmStart+133) {
-    mmCx = 66; mmCy = 13; rotate= 47; halfsize= 2; mmColor=c.darkgray;
-  } else if(animationCount >= mmStart+133 && animationCount < mmStart+136) {
-    mmCx = 66; mmCy = 12; rotate= 47; halfsize= 2; mmColor=c.darkgray;
-  } else if(animationCount >= mmStart+136) {
-    mmCx = 66; mmCy = 11; rotate= 47; halfsize= 2; mmColor=c.darkgray;
-  }
-  drawQuad(mmCx-halfsize,mmCy+halfsize,mmCx-halfsize,mmCy-halfsize,mmCx+halfsize,mmCy-halfsize,mmCx+halfsize,mmCy+halfsize,rotate,mmColor);
+  // Update marshmallow events state based on time (edge triggered, not time windows)
+  static size_t mmNextEvent = 0;
+  updateMarshmallowEvents(now, sceneStartTime,mmTimeline,MM_EVENT_COUNT, mmNextEvent,c);
 
-  // Smoke from the burned marshmallow
-  if(animationCount >= mmStart+130 && animationCount < mmStart+135) {
-    drawArc({mmCx,15},{mmCx-2,18},{mmCx,21},1,c.white);
-  } else if(animationCount >= mmStart+135 && animationCount < mmStart+140) {
-    drawArc({mmCx,21},{mmCx+2,24},{mmCx,27},1,c.white);
-  } else if(animationCount >= mmStart+140 && animationCount < mmStart+145) {
-    drawArc({mmCx,27},{mmCx-2,30},{mmCx,33},1,c.white);
-  } else if(animationCount >= mmStart+145 && animationCount < mmStart+150) {
-    drawArc({mmCx,33},{mmCx+2,36},{mmCx,39},1,c.white);
-  } else if(animationCount >= mmStart+150 && animationCount < mmStart+155) {
-    drawArc({mmCx,39},{mmCx-2,42},{mmCx,45},1,c.white);
-  }
+  // Now draw the marshmallow given the state and time we are at
+  renderMarshmallow(now, sceneStartTime,  mmTimeline, MM_EVENT_COUNT, mmNextEvent, c);
+  drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
+
 
   // the owl
   // define what time events should trigger when
@@ -932,7 +1012,7 @@ void fillBB_pinecrest() {
   drawOwl(100, 25, blink, squawk);
 
 
-  // PINECREST
+  // PINECREST letters
   font_7x7 f;
   drawLetter(f.P,0 ,32, c.black, c.green);
   drawLetter(f.I,7 ,32, c.black, c.green);
@@ -950,15 +1030,10 @@ void fillBB_pinecrest() {
   drawLetter(f.N6,31 ,18, c.black, c.green);
 
   // Reset the scene
-  if(animationCount > 250) {
-    animationCount = 0;
-    mmCx = 61;
-    mmCy = 27;
-    halfsize = 3;
-    rotate=0;
-    mmColor=c.white;
+  if(now > sceneStartTime + 10000) {
     timelineInitialized = false;
     owlNextEvent = 0;
+    mmNextEvent = 0;
   }
 }
 
