@@ -26,9 +26,9 @@ void lerpColor(RGB& out, RGB& a, RGB& b, float f) {
 
 // clamp  For clamping a number between two ranges
 float clamp(float val, float minVal, float maxVal) {
-  if(val - minVal < .01) {
+  if(val - minVal < .001) {
     return minVal;
-  } else if(val - maxVal > .01) {
+  } else if(val - maxVal > .001) {
     return maxVal;
   } else {
     return val;
@@ -839,17 +839,18 @@ void renderRaw(uint32_t t, palette& colors) {
 
 // Strart toasting - turn brown
 void renderToasting(uint32_t t, palette& colors) {
-    float u = clamp(t / 2000.0f, 0, 1);   // 2.0 seconds toasting
+    // check for 0 case so we don't get div by zero error
+    float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.rotation = lerp(0,20,u);
     mm.cy       = 26;
     mm.halfSize = 2;
-    //mm.color    = colors.lightbrown;
     lerpColor(mm.color,colors.white, colors.lightbrown, u);
 }
 
 // Strart melting/dropping
 void renderMelting(uint32_t t, palette& colors) {
-    float u = clamp(t / 3000.0f, 0, 1.0);   // 3.0 seconds melt
+    // check for 0 case so we don't get div by zero error
+    float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.rotation = lerp(20,45,u);
     mm.cy = lerp(26,24,u);
     mm.halfSize = 2;
@@ -858,7 +859,8 @@ void renderMelting(uint32_t t, palette& colors) {
 
 // Drop into the file
 void renderDropping(uint32_t t, palette& colors) {
-    float u = clamp(t / 1000.0f, 0, 1.0);   // 1.0 seconds drop
+    // check for 0 case so we don't get div by zero error
+    float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(24,18,u);
     mm.rotation = 45;
     mm.halfSize = 2;
@@ -866,7 +868,8 @@ void renderDropping(uint32_t t, palette& colors) {
 }
 // Burned sitting in the fire
 void renderBurnt(uint32_t t, palette& colors) {
-    float u = clamp(t / 1000.0f, 0, 1.0);   // 1.0 seconds final drop and burn
+    // check for 0 case so we don't get div by zero error
+    float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(18,10,u);
     mm.rotation = 45;
     mm.halfSize = 2;
@@ -875,12 +878,12 @@ void renderBurnt(uint32_t t, palette& colors) {
 
 // Up in smoke
 void renderSmoke(uint32_t t, palette& colors) {
-    float u = clamp(t / 1500.0f, 0, 1.0);   // 1.5 seconds smoke puff
+    // check for 0 case so we don't get div by zero error
+    float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(10,44,u);
     mm.rotation = lerp(-45,45,u);
     mm.halfSize = lerp(2,1,u);
     lerpColor(mm.color, colors.white, colors.black, u);
-    //mm.color = colors.white;
 }
 
 //#########  Edge triggered transition state change based on what time we reach
@@ -893,31 +896,37 @@ void updateMarshmallowEvents(uint32_t now, uint32_t sceneStartTime, const Marshm
         case MM_START_ROASTING:
           mm.phase = MM_RAW;
           mm.phaseStartTime = now;
+          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
         break;
 
         case MM_START_TOASTING:
           mm.phase = MM_TOASTING;
           mm.phaseStartTime = now;
+          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
         break;
 
         case MM_START_MELTING:
           mm.phase = MM_MELTING;
           mm.phaseStartTime = now;
+          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
         break;
 
         case MM_START_DROPPING:
           mm.phase = MM_DROPPING;
           mm.phaseStartTime = now;
+          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
         break;
 
         case MM_START_BURNING:
           mm.phase = MM_BURNT;
           mm.phaseStartTime = now;
+          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
         break;
 
         case MM_START_SMOKING:
           mm.phase = MM_SMOKE;
           mm.phaseStartTime = now;
+          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
         break;
     }
     mmNextEvent++;
@@ -925,7 +934,7 @@ void updateMarshmallowEvents(uint32_t now, uint32_t sceneStartTime, const Marshm
 }
 
 // Call the rendering functions based on what state we are in
-void renderMarshmallow(uint32_t now, uint32_t sceneStartTime, const MarshmallowEvent* mmTimeline, size_t eventCount, size_t& mmNextEvent, palette& colors) {
+void renderMarshmallow(uint32_t now, palette& colors) {
     uint32_t phaseElapsed = now - mm.phaseStartTime;
 
     switch (mm.phase) {
@@ -997,14 +1006,14 @@ void fillBB_pinecrest() {
   drawLine(67,25,90,18,1,c.gray);  
 
   // The marshmallow
-  // define what time events should trigger when
+  // define what time events should trigger when and any phase/lerp time for transitions
   const MarshmallowEvent mmTimeline[] = {
-    { 1000, MM_START_ROASTING },
-    { 2500, MM_START_TOASTING },
-    { 4500, MM_START_MELTING },
-    { 7500, MM_START_DROPPING },
-    { 8500, MM_START_BURNING },
-    { 9500, MM_START_SMOKING },
+    { 1000, MM_START_ROASTING, 0 },
+    { 2500, MM_START_TOASTING, 2000 },
+    { 4500, MM_START_MELTING, 3000 },
+    { 7500, MM_START_DROPPING, 1000 },
+    { 8500, MM_START_BURNING, 1000 },
+    { 9500, MM_START_SMOKING, 1500 },
   };
   constexpr size_t MM_EVENT_COUNT = sizeof(mmTimeline) / sizeof(mmTimeline[0]);
 
@@ -1013,25 +1022,7 @@ void fillBB_pinecrest() {
   updateMarshmallowEvents(now, sceneStartTime,mmTimeline,MM_EVENT_COUNT, mmNextEvent,c);
 
   // Now draw the marshmallow given the state and time we are at
-  renderMarshmallow(now, sceneStartTime,  mmTimeline, MM_EVENT_COUNT, mmNextEvent, c);
-  //drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
-
-
-  // Smoke from the burned marshmallow
-  /*
-  if(animationCount >= mmStart+130 && animationCount < mmStart+135) {
-    drawArc({mmCx,15},{mmCx-2,18},{mmCx,21},1,c.white);
-  } else if(animationCount >= mmStart+135 && animationCount < mmStart+140) {
-    drawArc({mmCx,21},{mmCx+2,24},{mmCx,27},1,c.white);
-  } else if(animationCount >= mmStart+140 && animationCount < mmStart+145) {
-    drawArc({mmCx,27},{mmCx-2,30},{mmCx,33},1,c.white);
-  } else if(animationCount >= mmStart+145 && animationCount < mmStart+150) {
-    drawArc({mmCx,33},{mmCx+2,36},{mmCx,39},1,c.white);
-  } else if(animationCount >= mmStart+150 && animationCount < mmStart+155) {
-    drawArc({mmCx,39},{mmCx-2,42},{mmCx,45},1,c.white);
-  }
-  */
-
+  renderMarshmallow(now, c);
 
   // the owl
   // define what time events should trigger when

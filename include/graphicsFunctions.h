@@ -128,13 +128,15 @@ enum MarshmallowPhase {
 };
 
 struct MarshmallowEvent {
-  uint32_t timeMs;     // relative to scene start
+  uint32_t timeMs;       // relative to scene start
   MarshmallowEventType type;
+  uint32_t phaseTimeMs;  // relative to event start.  How long any phase lerping happens
 };
 
 struct MarshmallowState {
   MarshmallowPhase phase;
   uint32_t phaseStartTime;
+  uint32_t phaseRunTime;
 
   // base pose
   float cx, cy;
