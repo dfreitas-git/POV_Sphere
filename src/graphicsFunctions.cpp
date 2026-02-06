@@ -1027,22 +1027,6 @@ void fillBB_pinecrest() {
   // Now draw the marshmallow given the state and time we are at
   renderMarshmallow(now, c);
 
-  // Smoke from the burned marshmallow
-  /*
-  if(animationCount >= mmStart+130 && animationCount < mmStart+135) {
-    drawArc({mmCx,15},{mmCx-2,18},{mmCx,21},1,c.white);
-  } else if(animationCount >= mmStart+135 && animationCount < mmStart+140) {
-    drawArc({mmCx,21},{mmCx+2,24},{mmCx,27},1,c.white);
-  } else if(animationCount >= mmStart+140 && animationCount < mmStart+145) {
-    drawArc({mmCx,27},{mmCx-2,30},{mmCx,33},1,c.white);
-  } else if(animationCount >= mmStart+145 && animationCount < mmStart+150) {
-    drawArc({mmCx,33},{mmCx+2,36},{mmCx,39},1,c.white);
-  } else if(animationCount >= mmStart+150 && animationCount < mmStart+155) {
-    drawArc({mmCx,39},{mmCx-2,42},{mmCx,45},1,c.white);
-  }
-  */
-
-
   // the owl
   // define what time events should trigger when
   const OwlEvent owlTimeline[] = {
@@ -1061,7 +1045,6 @@ void fillBB_pinecrest() {
   bool blink  = renderBlink(now);
   bool squawk = owl.squawking;
   drawOwl(100, 25, blink, squawk);
-
 
   // PINECREST letters
   font_7x7 f;
