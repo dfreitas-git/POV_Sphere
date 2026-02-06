@@ -139,9 +139,9 @@ struct MarshmallowState {
   uint32_t phaseRunTime;
 
   // base pose
-  float cx, cy;
-  float rotation;
-  float halfSize;
+  int cx, cy;
+  int rotation;
+  int halfSize;
   RGB color;
 };
 

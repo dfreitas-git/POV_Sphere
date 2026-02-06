@@ -833,7 +833,7 @@ void updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* time
 void renderRaw(uint32_t t, palette& colors) {
     mm.rotation = 0;
     mm.cy       = 26;
-    mm.halfSize = 2;
+    mm.halfSize = 3;
     mm.color    = colors.white;
 }
 
@@ -841,9 +841,9 @@ void renderRaw(uint32_t t, palette& colors) {
 void renderToasting(uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
-    mm.rotation = lerp(0,20,u);
+    mm.rotation = lerp(0,10,u);
     mm.cy       = 26;
-    mm.halfSize = 2;
+    mm.halfSize = 3;
     lerpColor(mm.color,colors.white, colors.lightbrown, u);
 }
 
@@ -851,9 +851,10 @@ void renderToasting(uint32_t t, palette& colors) {
 void renderMelting(uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
-    mm.rotation = lerp(20,45,u);
-    mm.cy = lerp(26,24,u);
-    mm.halfSize = 2;
+    mm.rotation = lerp(10,20,u);
+    //mm.cy = lerp(26,24,u);
+    mm.cy       = 26;
+    mm.halfSize = 3;
     lerpColor(mm.color, colors.lightbrown, colors.brown, u);
 }
 
@@ -861,9 +862,9 @@ void renderMelting(uint32_t t, palette& colors) {
 void renderDropping(uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
-    mm.cy = lerp(24,18,u);
-    mm.rotation = 45;
-    mm.halfSize = 2;
+    mm.cy = lerp(26,18,u);
+    mm.rotation = lerp(20,25,u);
+    mm.halfSize = 3;
     lerpColor(mm.color, colors.brown, colors.darkgray, u);
 }
 // Burned sitting in the fire
@@ -871,8 +872,8 @@ void renderBurnt(uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(18,10,u);
-    mm.rotation = 45;
-    mm.halfSize = 2;
+    mm.rotation = lerp(25,29,u);
+    mm.halfSize = 3;
     lerpColor(mm.color, colors.darkgray, colors.black, u);
 }
 
@@ -881,8 +882,6 @@ void renderSmoke(uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(10,44,u);
-    mm.rotation = lerp(-45,45,u);
-    mm.halfSize = lerp(2,1,u);
     lerpColor(mm.color, colors.white, colors.black, u);
 }
 
@@ -962,7 +961,11 @@ void renderMarshmallow(uint32_t now, palette& colors) {
             renderSmoke(phaseElapsed,colors);
             break;
     }
-    drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
+    if(mm.phase == MM_SMOKE) {
+      drawArc({mm.cx,mm.cy-3},{mm.cx-random(-2,2),mm.cy},{mm.cx,mm.cy+3},1,mm.color);
+    } else {
+      drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
+    }
 }
 
   
@@ -1023,6 +1026,22 @@ void fillBB_pinecrest() {
 
   // Now draw the marshmallow given the state and time we are at
   renderMarshmallow(now, c);
+
+  // Smoke from the burned marshmallow
+  /*
+  if(animationCount >= mmStart+130 && animationCount < mmStart+135) {
+    drawArc({mmCx,15},{mmCx-2,18},{mmCx,21},1,c.white);
+  } else if(animationCount >= mmStart+135 && animationCount < mmStart+140) {
+    drawArc({mmCx,21},{mmCx+2,24},{mmCx,27},1,c.white);
+  } else if(animationCount >= mmStart+140 && animationCount < mmStart+145) {
+    drawArc({mmCx,27},{mmCx-2,30},{mmCx,33},1,c.white);
+  } else if(animationCount >= mmStart+145 && animationCount < mmStart+150) {
+    drawArc({mmCx,33},{mmCx+2,36},{mmCx,39},1,c.white);
+  } else if(animationCount >= mmStart+150 && animationCount < mmStart+155) {
+    drawArc({mmCx,39},{mmCx-2,42},{mmCx,45},1,c.white);
+  }
+  */
+
 
   // the owl
   // define what time events should trigger when
@@ -1384,11 +1403,6 @@ void drawRect(int llX, int llY, int urX, int urY, int rotate, const struct RGB& 
     urY = tmpY;
   }
   drawQuad(llX, llY, llX, urY, urX, urY, urX, llY, rotate, color);
-  //for (int col = llX; col <= urX; col++) {
-  //  for(int row = llY; row <= urY; row++) {
-  //    writePixel(col, row, color);
-  //  }
-  //}
 }
 
 //################################################################
