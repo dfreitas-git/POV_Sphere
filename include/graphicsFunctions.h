@@ -114,7 +114,8 @@ enum MarshmallowEventType {
   MM_START_TOASTING,
   MM_START_MELTING,
   MM_START_DROPPING,
-  MM_START_BURNING
+  MM_START_BURNING,
+  MM_START_SMOKING
 };
 
 enum MarshmallowPhase {
@@ -122,7 +123,8 @@ enum MarshmallowPhase {
   MM_TOASTING,
   MM_MELTING,
   MM_DROPPING,
-  MM_BURNT
+  MM_BURNT,
+  MM_SMOKE
 };
 
 struct MarshmallowEvent {

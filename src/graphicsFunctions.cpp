@@ -16,6 +16,14 @@ float lerp(float a, float b, float f) {
     return a + f * (b - a);
 }
 
+// linear interpolation to transition from one color to another.  Pass two RGB color structs, load the "out" struct with the interpolated colors.
+// f is the interpolation point (between 0.0 and 1.0)
+void lerpColor(RGB& out, RGB& a, RGB& b, float f) {
+     out.r = a.r + f * (b.r - a.r);
+     out.g = a.g + f * (b.g - a.g);
+     out.b = a.b + f * (b.b - a.b);
+}
+
 // clamp  For clamping a number between two ranges
 float clamp(float val, float minVal, float maxVal) {
   if(val - minVal < .01) {
@@ -835,8 +843,8 @@ void renderToasting(uint32_t t, palette& colors) {
     mm.rotation = lerp(0,20,u);
     mm.cy       = 26;
     mm.halfSize = 2;
-    //mm.color    = lerpColor(c.white, c.lightbrown, u);
-    mm.color    = colors.lightbrown;
+    //mm.color    = colors.lightbrown;
+    lerpColor(mm.color,colors.white, colors.lightbrown, u);
 }
 
 // Strart melting/dropping
@@ -845,8 +853,7 @@ void renderMelting(uint32_t t, palette& colors) {
     mm.rotation = lerp(20,45,u);
     mm.cy = lerp(26,24,u);
     mm.halfSize = 2;
-    //mm.color    = lerpColor(c.lightbrown, c.brown, u);
-    mm.color    = colors.brown;
+    lerpColor(mm.color, colors.lightbrown, colors.brown, u);
 }
 
 // Drop into the file
@@ -855,8 +862,7 @@ void renderDropping(uint32_t t, palette& colors) {
     mm.cy = lerp(24,18,u);
     mm.rotation = 45;
     mm.halfSize = 2;
-    //mm.color    = lerpColor(c.brown, c.darkgray, u);
-    mm.color    = colors.darkgray;
+    lerpColor(mm.color, colors.brown, colors.darkgray, u);
 }
 // Burned sitting in the fire
 void renderBurnt(uint32_t t, palette& colors) {
@@ -864,8 +870,17 @@ void renderBurnt(uint32_t t, palette& colors) {
     mm.cy = lerp(18,10,u);
     mm.rotation = 45;
     mm.halfSize = 2;
-    //mm.color    = lerpColor(c.darkgray, c.black, u);
-    mm.color    = colors.black;
+    lerpColor(mm.color, colors.darkgray, colors.black, u);
+}
+
+// Up in smoke
+void renderSmoke(uint32_t t, palette& colors) {
+    float u = clamp(t / 1500.0f, 0, 1.0);   // 1.5 seconds smoke puff
+    mm.cy = lerp(10,44,u);
+    mm.rotation = lerp(-45,45,u);
+    mm.halfSize = lerp(2,1,u);
+    lerpColor(mm.color, colors.white, colors.black, u);
+    //mm.color = colors.white;
 }
 
 //#########  Edge triggered transition state change based on what time we reach
@@ -899,6 +914,11 @@ void updateMarshmallowEvents(uint32_t now, uint32_t sceneStartTime, const Marshm
           mm.phase = MM_BURNT;
           mm.phaseStartTime = now;
         break;
+
+        case MM_START_SMOKING:
+          mm.phase = MM_SMOKE;
+          mm.phaseStartTime = now;
+        break;
     }
     mmNextEvent++;
   }
@@ -928,9 +948,13 @@ void renderMarshmallow(uint32_t now, uint32_t sceneStartTime, const MarshmallowE
         case MM_BURNT:
             renderBurnt(phaseElapsed,colors);
             break;
-    }
-}
 
+        case MM_SMOKE:
+            renderSmoke(phaseElapsed,colors);
+            break;
+    }
+    drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
+}
 
   
 //#############################
@@ -980,6 +1004,7 @@ void fillBB_pinecrest() {
     { 4500, MM_START_MELTING },
     { 7500, MM_START_DROPPING },
     { 8500, MM_START_BURNING },
+    { 9500, MM_START_SMOKING },
   };
   constexpr size_t MM_EVENT_COUNT = sizeof(mmTimeline) / sizeof(mmTimeline[0]);
 
@@ -989,7 +1014,23 @@ void fillBB_pinecrest() {
 
   // Now draw the marshmallow given the state and time we are at
   renderMarshmallow(now, sceneStartTime,  mmTimeline, MM_EVENT_COUNT, mmNextEvent, c);
-  drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
+  //drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
+
+
+  // Smoke from the burned marshmallow
+  /*
+  if(animationCount >= mmStart+130 && animationCount < mmStart+135) {
+    drawArc({mmCx,15},{mmCx-2,18},{mmCx,21},1,c.white);
+  } else if(animationCount >= mmStart+135 && animationCount < mmStart+140) {
+    drawArc({mmCx,21},{mmCx+2,24},{mmCx,27},1,c.white);
+  } else if(animationCount >= mmStart+140 && animationCount < mmStart+145) {
+    drawArc({mmCx,27},{mmCx-2,30},{mmCx,33},1,c.white);
+  } else if(animationCount >= mmStart+145 && animationCount < mmStart+150) {
+    drawArc({mmCx,33},{mmCx+2,36},{mmCx,39},1,c.white);
+  } else if(animationCount >= mmStart+150 && animationCount < mmStart+155) {
+    drawArc({mmCx,39},{mmCx-2,42},{mmCx,45},1,c.white);
+  }
+  */
 
 
   // the owl
@@ -1030,7 +1071,7 @@ void fillBB_pinecrest() {
   drawLetter(f.N6,31 ,18, c.black, c.green);
 
   // Reset the scene
-  if(now > sceneStartTime + 10000) {
+  if(now > sceneStartTime + 11500) {
     timelineInitialized = false;
     owlNextEvent = 0;
     mmNextEvent = 0;
