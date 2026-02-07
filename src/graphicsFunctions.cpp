@@ -35,9 +35,6 @@ float clamp(float val, float minVal, float maxVal) {
   }
 }
 
-
-
-
 //###################################################################
 // Fill the backbuffer in preperation for the next displayed frame
 // Assumes a 120x48 image imported from Gimp in rgb565 format (two
@@ -145,7 +142,7 @@ void fillBB_paint() {
   uint16_t spillTime_mS = 4000;   // Time to iterate acroll 48 rows
   uint32_t elapsed = millis();
 
-  uint32_t head = (elapsed * 48) / spillTime_mS;   // What row the spill edge is at
+  uint32_t head = (elapsed * ROWS) / spillTime_mS;   // What row the spill edge is at
   head %= ROWS;
 
   // Start the head pointer from the top (row-47) and move down to the bottom (row-0)
@@ -160,7 +157,7 @@ void fillBB_paint() {
   
   static int bgColorIndex = 0;
   static int fgColorIndex = 1;
-  int colorArrLen = sizeof(colors) / sizeof(colors[0]);
+  int colorArrLen = sizeof(contrastColors) / sizeof(contrastColors[0]);
 
   // Create instances for the foreground and background color
   static RGB fgColor, bgColor;
@@ -168,8 +165,8 @@ void fillBB_paint() {
 
   // head just wrapped from 0 -> 47 swap rgb fg/bg colors and compute a new fg color
   if (cycle != lastCycle) {    
-    bgColor = colors[bgColorIndex];
-    fgColor = colors[fgColorIndex];
+    bgColor = contrastColors[bgColorIndex];
+    fgColor = contrastColors[fgColorIndex];
     bgColorIndex = fgColorIndex;
     fgColorIndex++;
     if(bgColorIndex == colorArrLen - 1) {
@@ -183,7 +180,7 @@ void fillBB_paint() {
 
   // For each row, figure out which color band it lays in
   // Start from the top row so it looks like the paint is flowing down
-  for (int row = 0; row < 48; row++) {
+  for (int row = 0; row < ROWS; row++) {
     for (int col = 0; col < 120; col++) {
 
       // Shape the boundary with offsets from our look up table
@@ -204,8 +201,8 @@ void fillBB_hBands() {
 
   // Create a head pointer which is the leading edge of the first spill color
   uint32_t elapsed = millis();
-  int head = (elapsed * 48) / 3000;      // 0–47 over 3 seconds
-  head %= 48;  // Wrap back the start once head reaches the bottom of the Sphere
+  int head = (elapsed * ROWS) / 3000;      // 0–47 over 3 seconds
+  head %= ROWS;  // Wrap back the start once head reaches the bottom of the Sphere
 
   // load with R, G, B for index 0,1,2
   const uint8_t r[3] = {255,0,0};
@@ -213,8 +210,8 @@ void fillBB_hBands() {
   const uint8_t b[3] = {0,0,255};
 
   // for each row, figure out which color band it lays in
-  for (int row = 0; row < 48; row++) {
-    int d = (head - row + 48) % 48;   // distance behind the head this current row is
+  for (int row = 0; row < ROWS; row++) {
+    int d = (head - row + ROWS) % ROWS;   // distance behind the head this current row is
     int colorIndex;
     if (d < 8)        colorIndex=0;
     else if (d < 16)   colorIndex=1;
@@ -340,7 +337,7 @@ void fillBB_checker() {
   static int fg1ColorIndex = 3;
 
   // colors defined in graphicsFunctions.h
-  int colorArrLen = sizeof(colors) / sizeof(colors[0]);
+  int colorArrLen = sizeof(contrastColors) / sizeof(contrastColors[0]);
 
   // Use time to control the frequency of color changes
   int colorPeriod = 2000;
@@ -386,9 +383,9 @@ void fillBB_checker() {
       bool fg = ((row >> 3) ^ (col >> 3)) & 1;
       RGB color;
       if(fg) {
-        color = colors[fgIndex];
+        color = contrastColors[fgIndex];
       } else { 
-        color = colors[bgIndex];
+        color = contrastColors[bgIndex];
       }
       backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
       backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
@@ -575,7 +572,7 @@ void fillBB_flower() {
   static int animateIncrement = 1;
   if( cycle != lastCycle){
     lastCycle = cycle;
-    if(animateCount >= 47) {
+    if(animateCount >= ROWS-1) {
       animateIncrement = -1;
     }
     if(animateCount <= 1) {
@@ -598,14 +595,16 @@ void fillBB_flower() {
 }
 
 //#######################################
-//  Right twist Spiral around the Sphere
+//  Main spiral draw engine.  
 //#######################################
-void fillBB_spiralR(){
+void cycle_spiral(int numSpirals, int thickness, int twist){
 
+  // How long between color changes
   constexpr uint32_t spiralRevPeriod = 3000; //in mS 
-  constexpr int K = 1;  // Spiral twist factor
-  constexpr int numSpirals = 6;
-  constexpr int thickness = 8;  // How many pixels wide are the spirals
+
+  // How quickly we do framebuffer updates (in ms)
+  uint16_t animatePeriod = 50;
+  static int animateCount = 1;
   static int fg0ColorIndex = 0;
   static int fg1ColorIndex = 1;
   RGB bgColor = {0,0,0};
@@ -614,6 +613,24 @@ void fillBB_spiralR(){
   static uint32_t phase = 0;
   static uint32_t lastColorSwitchTime = 0;
   uint32_t now = millis();
+
+  // What animate cycle are we in?
+  uint32_t cycle = now / animatePeriod; 
+  static uint32_t lastCycle = 0;
+
+  // Increment the animate count when we see a cycle transition
+  // We increment up and down so the pattern rises/falls
+  static int animateIncrement = 1;
+  if( cycle != lastCycle){
+    lastCycle = cycle;
+    if(animateCount >= ROWS-1) {
+      animateIncrement = -1;
+    }
+    if(animateCount <= 1) {
+      animateIncrement = 1;
+    }
+    animateCount += animateIncrement;
+  }
 
   // Change color every rev cycle
   if (now - lastColorSwitchTime >= spiralRevPeriod) {    
@@ -632,7 +649,20 @@ void fillBB_spiralR(){
       writePixel(col, row, bgColor);
     }
   }
-  drawSpiral(phase, K, numSpirals, thickness, spiralColors[fg0ColorIndex]);
+  drawSpiral(phase, -twist, numSpirals, thickness, animateCount, spiralColors[fg0ColorIndex]);
+}
+
+//#######################################
+//  Right twist Spiral around the Sphere
+//#######################################
+void fillBB_spiralR(){
+
+  // Set how many spirals and there size
+  constexpr int numSpirals = 6;
+  constexpr int thickness = 4;  // How many pixels wide are the spirals
+  constexpr int K = -1;  // Spiral twist factor
+
+  cycle_spiral(numSpirals, thickness, K);
 
 }
 
@@ -641,38 +671,12 @@ void fillBB_spiralR(){
 //#######################################
 void fillBB_spiralL(){
 
-  constexpr uint32_t spiralRevPeriod = 3000; //in mS 
-  constexpr int K = 1;  // Spiral twist factor
+  // Set how many spirals and there size
   constexpr int numSpirals = 8;
   constexpr int thickness = 8;  // How many pixels wide are the spirals
-  static int fg0ColorIndex = 0;
-  static int fg1ColorIndex = 1;
-  RGB bgColor = {0,0,0};
-  int colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
+  constexpr int K = 1;  // Spiral twist factor
 
-  static uint32_t phase = 0;
-  static uint32_t lastColorSwitchTime = 0;
-  uint32_t now = millis();
-
-  // Change color every rev cycle
-  if (now - lastColorSwitchTime >= spiralRevPeriod) {    
-    lastColorSwitchTime = now;
-    fg0ColorIndex = fg1ColorIndex;
-    fg1ColorIndex += 1;
-
-    if(fg1ColorIndex == colorArrLen) {
-       fg1ColorIndex = 0;
-    }
-  }
-
-  // Fill the background
-  for (int col = 0; col < COLUMNS; col++) {
-    for (int row = 0; row < ROWS; row++) {
-      writePixel(col, row, bgColor);
-    }
-  }
-  drawSpiral(phase, -K, numSpirals, thickness, spiralColors[fg0ColorIndex]);
-
+  cycle_spiral(numSpirals, thickness, K);
 }
 
 //##################################
@@ -680,14 +684,21 @@ void fillBB_spiralL(){
 //##################################
 void fillBB_spiralD(){
 
-  constexpr uint32_t spiralRevPeriod = 3000; //in mS 
   constexpr int K = 1;  // Spiral twist factor
   constexpr int numSpirals = 6;
   constexpr int thickness = 3;  // How many pixels wide are the spirals
   static int fg0ColorIndex = 0;
   static int fg1ColorIndex = 1;
+
   RGB bgColor = {0,0,0};
   int colorArrLen = sizeof(spiralColors) / sizeof(spiralColors[0]);
+
+  // color change period
+  constexpr uint32_t spiralRevPeriod = 3000; //in mS 
+
+  // How quickly we do framebuffer updates (in ms)
+  uint16_t animatePeriod = 50;
+  static int animateCount = 1;
 
   static uint32_t phase = 0;
   static uint32_t lastColorSwitchTime = 0;
@@ -704,14 +715,32 @@ void fillBB_spiralD(){
     }
   }
 
+  // What animate cycle are we in?
+  uint32_t cycle = now / animatePeriod; 
+  static uint32_t lastCycle = 0;
+
+  // Increment the animate count when we see a cycle transition
+  // We increment up and down so the pattern rises/falls
+  static int animateIncrement = 1;
+  if( cycle != lastCycle){
+    lastCycle = cycle;
+    if(animateCount >= ROWS-1) {
+      animateIncrement = -1;
+    }
+    if(animateCount <= 1) {
+      animateIncrement = 1;
+    }
+    animateCount += animateIncrement;
+  }
+
   // Fill the background
   for (int col = 0; col < COLUMNS; col++) {
     for (int row = 0; row < ROWS; row++) {
       writePixel(col, row, bgColor);
     }
   }
-  drawSpiral(phase, K, numSpirals, thickness, spiralColors[fg0ColorIndex]);
-  drawSpiral(phase, -K, numSpirals, thickness, spiralColors[fg1ColorIndex]);
+  drawSpiral(phase, K, numSpirals, thickness, animateCount, spiralColors[fg0ColorIndex]);
+  drawSpiral(phase, -K, numSpirals, thickness, ROWS-1, spiralColors[fg1ColorIndex]);
 
 }
 
@@ -882,7 +911,8 @@ void renderSmoke(uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(10,44,u);
-    lerpColor(mm.color, colors.white, colors.black, u);
+    //lerpColor(mm.color, colors.white, colors.black, u);
+    mm.color = colors.white;
 }
 
 //#########  Edge triggered transition state change based on what time we reach
@@ -963,12 +993,13 @@ void renderMarshmallow(uint32_t now, palette& colors) {
     }
     if(mm.phase == MM_SMOKE) {
       static int arcDepth = -2;
-      drawArc({mm.cx,mm.cy-3},{mm.cx-arcDepth,mm.cy},{mm.cx,mm.cy+3},1,mm.color);
-      if(arcDepth == -2) {
-        arcDepth = 2;
-      } else {
-        arcDepth = -2;
+      
+      // Once the smoke gets to the top, turn it off
+      if(mm.cy >= 44) {
+        mm.color = colors.black ;
       }
+      drawArc({mm.cx,mm.cy-3},{mm.cx-arcDepth,mm.cy},{mm.cx,mm.cy+3},1,mm.color);
+      arcDepth = arcDepth * -1;  // Alternate the arc back and forth
     } else {
       drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
     }
@@ -1094,10 +1125,12 @@ static inline int wrapDist(int a, int b) {
     if (d < -(COLUMNS / 2)) d += COLUMNS;
     return d;
 }
-void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, const struct RGB& color) {
+
+void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, int drawToRow, const struct RGB& color) {
   static int pcount = 0;
+  static int advanceCount = 0;
   int wD,wDF;
-  for (int phi = 0; phi < ROWS; ++phi) { 
+  for (int phi = 0; phi < drawToRow; ++phi) { 
     int base = (K * phi + phase) % COLUMNS; 
     for (int theta = 0; theta < COLUMNS; ++theta) { 
       for (int i = 0; i < numSpirals; ++i) { 

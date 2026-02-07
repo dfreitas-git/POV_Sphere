@@ -47,20 +47,27 @@ constexpr RGB spiralColors[] = {
               };
 
 
-// Set up some pre-determined colors to cycle between for the checkerboard animation (these give good contrast between each pair)
-constexpr RGB colors[] = {
+// Set up some pre-determined colors to cycle between for the checkerboard animation
+// 2/7/2026 - Changed to black every other square for better contrast
+constexpr RGB contrastColors[] = {
                 {235,0,0},
-                {0,235,0},
+                {0,0,0},
+                //{0,235,0},
                 {1,65,223},
-                {10,229,0},
+                {0,0,0},
+                //{10,229,0},
                 {218,24,94},
-                {74,160,240},
+                {0,0,0},
+                //{74,160,240},
                 {231,121,67},
-                {72,106,16},
+                {0,0,0},
+                //{72,106,16},
                 {101,16,187},
-                {5,17,37},
+                {0,0,0},
+                //{5,17,37},
                 {196,16,12},
-                {0,235,235},
+                {0,0,0},
+                //{0,235,235},
               };
 
 
@@ -170,7 +177,8 @@ static uint32_t outOfBoundsPixelCount = 0;
 float lerp(float a, float b, float f);
 float clamp(float val, float minVal, float maxVal);
 void writePixel(int col, int row, const struct RGB& color);
-void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, const struct RGB& color);
+void cycle_spiral(int numSpirals, int thickness, int twist);
+void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, int drawToRow, const struct RGB& color);
 void drawLetter(uint8_t (*letter)[7], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor);
 void drawLine(int pt0X, int pt0Y, int pt1X, int pt1Y, int thickness, const struct RGB& color);
 void drawArc(const Vec2& p1, const Vec2& p2, const Vec2& p3, int thickness, const struct RGB& color);

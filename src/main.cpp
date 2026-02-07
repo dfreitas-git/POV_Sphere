@@ -105,7 +105,7 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
  
-  Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
+  //Serial.printf("CPU Frequency: %d MHz\n", getCpuFrequencyMhz());
 
   // Create a eventGroup for core-0 tasks to use to be sure setup is complete before starting their loops
   initEvent = xEventGroupCreate();
