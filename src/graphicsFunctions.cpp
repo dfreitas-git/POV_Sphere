@@ -526,7 +526,7 @@ void fillBB_diamond() {
   static int animateIncrement = 1;
   if( cycle != lastCycle){
     lastCycle = cycle;
-    if(animateCount >= 20) {
+    if(animateCount >= 19) {
       animateIncrement = -1;
     }
     if(animateCount <= borderWidth) {
@@ -535,14 +535,14 @@ void fillBB_diamond() {
     animateCount += animateIncrement;
   }
 
-  drawDiamond(20, 22, animateCount, animateCount, c.yellow);
-  drawDiamond(20, 22, animateCount-borderWidth, animateCount-borderWidth, c.purple);
+  drawDiamond(20, 24, animateCount, animateCount, c.yellow);
+  drawDiamond(20, 24, animateCount-borderWidth, animateCount-borderWidth, c.purple);
 
-  drawDiamond(60, 22, animateCount, animateCount, c.blue);
-  drawDiamond(60, 22, animateCount-borderWidth, animateCount-borderWidth, c.yellow);
+  drawDiamond(60, 24, animateCount, animateCount, c.blue);
+  drawDiamond(60, 24, animateCount-borderWidth, animateCount-borderWidth, c.yellow);
 
-  drawDiamond(100, 22, animateCount, animateCount, c.purple);
-  drawDiamond(100, 22, animateCount-borderWidth, animateCount-borderWidth, c.yellow);
+  drawDiamond(100, 24, animateCount, animateCount, c.purple);
+  drawDiamond(100, 24, animateCount-borderWidth, animateCount-borderWidth, c.yellow);
 }
 
 //#########################

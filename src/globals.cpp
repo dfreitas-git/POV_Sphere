@@ -6,7 +6,7 @@ uint8_t fiveBitBright;            // hold the mapping of the menu brightness (0-
 
 int framebufferOffset=0;         // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
 unsigned long lastScrollTime;
-unsigned long lastAnimateTime;     
+unsigned long lastAnimateTime;
 
 // Core-0 will do the actual angle measurements, Core-1 will sync to them
 volatile uint32_t measuredAngle;   // AS5600 raw
@@ -59,6 +59,9 @@ volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 uint8_t currentIndex = 0;
 bool editingValue = false;
 uint8_t imageToDisplayIndex = 0;
+
+// Demo mode - When true, rotate through all the display animations
+bool demoAll = false;
 
 /* Blink control */
 bool blinkOn = true;

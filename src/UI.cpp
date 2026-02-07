@@ -69,6 +69,16 @@ void scrollOnOff(MenuItem*) {
   }
 }
 
+void demoOnOff(MenuItem*) {
+  if(demoAll == true) {
+    demoAll = false;
+     Serial.println("DemoAll Off");
+  } else {
+    demoAll = true;
+     Serial.println("DemoAll On");
+  }
+}
+
 /* ===================== Menu Declarations ===================== */
 MenuItem menuMain;
 MenuItem menuSettings;
@@ -77,6 +87,7 @@ MenuItem menuDisplay;
 MenuItem menuRPM;
 MenuItem menuMotorOnOff;
 MenuItem menuScrollOnOff;
+MenuItem menuDemoOnOff;
 
 
 /* ===================== Menu Construction ===================== */
@@ -89,6 +100,7 @@ MenuItem* mainChildren[] = {
   &menuMotorOnOff,
   &menuScrollOnOff,
   &menuDisplay,
+  &menuDemoOnOff,
   &menuSettings
 };
 
@@ -101,7 +113,7 @@ void buildMenu() {
     MENU_SUBMENU,
     nullptr,
     mainChildren,
-    4,
+    5,
     nullptr,
     nullptr, 0, 0,
     nullptr, 0, 0,
@@ -163,6 +175,17 @@ void buildMenu() {
     &menuSettings,
     nullptr, 0,
     scrollOnOff,
+    nullptr, 0, 0,
+    nullptr, 0, 0,
+    nullptr,0,nullptr
+  };
+
+  menuDemoOnOff = {
+    "Demo On/Off",
+    MENU_ACTION,
+    &menuSettings,
+    nullptr, 0,
+    demoOnOff,
     nullptr, 0, 0,
     nullptr, 0, 0,
     nullptr,0,nullptr

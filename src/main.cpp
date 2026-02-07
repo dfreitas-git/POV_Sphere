@@ -61,6 +61,8 @@
 #include <motor.h>
 #include <renderer.h>
 
+// uncomment this to print the stack size used for each of the freeRTOS tasks
+//#define STACK_CHECK
 
 // Prototypes
 void uiTask(void* parameter) ;
@@ -173,7 +175,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     uiTask,
     "UI Task",
-    4096,
+    3072,
     nullptr,
     1,
     &uiTaskHandle,
@@ -184,7 +186,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     graphicsTask,
     "Graphics Task",
-    4096,
+    3072,
     nullptr,
     1,
     &graphicsTaskHandle,
@@ -195,7 +197,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     motorTask,
     "Motor Task",
-    4096,
+    3072,
     nullptr,
     1,
     &motorTaskHandle,
@@ -283,6 +285,15 @@ void motorTask(void* parameter) {
         ledcWrite(0, (int)pwm);
       }
     }
+    
+   #ifdef STACK_CHECK 
+    UBaseType_t watermark = uxTaskGetStackHighWaterMark(nullptr);
+    Serial.printf("Motor stack free: %u words (%u bytes)\n",
+                  watermark, watermark * 4);
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+   #endif 
+
     // Need to throttle the motor loop so other tasks can execute too
     vTaskDelayUntil(&lastWake, period); // scheduling point
   }
@@ -322,11 +333,27 @@ void graphicsTask(void* parameter) {
 
     // Load the backBuffer with the next frame to display
     if (!backBufferFilled) {
+      if(demoAll) {
+        if(millis() - lastAnimateTime > DEMO_DISPLAY_TIME) {
+          imageToDisplayIndex++;
+          if(imageToDisplayIndex >= IMG_COUNT) {
+            imageToDisplayIndex = 0;
+          }
+          lastAnimateTime = millis();
+        }
+      }
       imageTable[imageToDisplayIndex]->functionPtr();
       backBufferFilled = true;
-      lastAnimateTime = millis();
-      //Serial.println("Filled backbuffer");
     }
+
+    #ifdef STACK_CHECK 
+    UBaseType_t watermark = uxTaskGetStackHighWaterMark(nullptr);
+    Serial.printf("Graphics stack free: %u words (%u bytes)\n",
+                  watermark, watermark * 4);
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    #endif
+
     // Need to throttle the task so other tasks have a chance to work
     vTaskDelayUntil(&lastWake, framePeriod);
   }
@@ -365,6 +392,15 @@ void uiTask(void* parameter) {
     // Update the OLED
     updateBlink();
     drawMenu();
+
+    #ifdef STACK_CHECK 
+    UBaseType_t watermark = uxTaskGetStackHighWaterMark(nullptr);
+    Serial.printf("UI stack free: %u words (%u bytes)\n",
+                  watermark, watermark * 4);
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    #endif
+
     //Serial.println("Updated OLED");
     // Need to throttle the UI loop so other tasks have time to execute
     vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz UI scan

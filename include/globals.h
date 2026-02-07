@@ -9,7 +9,7 @@ extern uint8_t fiveBitBright;        // hold the mapping of the menu brightness 
 
 extern int framebufferOffset;         // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
 extern unsigned long lastScrollTime;
-extern unsigned long lastAnimateTime;     
+extern unsigned long lastAnimateTime;
 
 // Core-0 will do the actual angle measurements, Core-1 will sync to them
 extern volatile uint32_t measuredAngle;   // AS5600 raw
@@ -67,6 +67,7 @@ extern const uint8_t NUMBER_OF_DISPLAY_FILES;
 extern const char* imageToDisplay[];
 
 extern volatile bool scrollOnOffFlag; 
+extern bool demoAll;
 
 
 // Constant globals
@@ -106,6 +107,7 @@ constexpr int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_
 constexpr int TOTAL_COLUMNS_BYTES = COLUMNS * COLUMN_PAYLOAD;
 
 constexpr uint8_t SCROLL_UPDATE_TIME = 100;   // How often (in milliseconds) to update the framebuffer offset pointer.  Controls how fast the image scrolls around the Sphere.
+constexpr uint16_t DEMO_DISPLAY_TIME = 10000;  // Amount of time we give each animation to display during the demo mode.
 constexpr uint8_t MAX_TRIM = 2;           // The most we allow core-0 to adjust the angle being computed by core-1
 
 // Core-1 angle values calculated and pll-locked to core-0 actual angle measurements
