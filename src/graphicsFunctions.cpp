@@ -962,7 +962,13 @@ void renderMarshmallow(uint32_t now, palette& colors) {
             break;
     }
     if(mm.phase == MM_SMOKE) {
-      drawArc({mm.cx,mm.cy-3},{mm.cx-random(-2,2),mm.cy},{mm.cx,mm.cy+3},1,mm.color);
+      static int arcDepth = -2;
+      drawArc({mm.cx,mm.cy-3},{mm.cx-arcDepth,mm.cy},{mm.cx,mm.cy+3},1,mm.color);
+      if(arcDepth == -2) {
+        arcDepth = 2;
+      } else {
+        arcDepth = -2;
+      }
     } else {
       drawQuad(mm.cx-mm.halfSize, mm.cy+mm.halfSize, mm.cx-mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy-mm.halfSize, mm.cx+mm.halfSize, mm.cy+mm.halfSize, mm.rotation, mm.color);
     }
@@ -1031,9 +1037,9 @@ void fillBB_pinecrest() {
   // define what time events should trigger when
   const OwlEvent owlTimeline[] = {
     { 4000, OWL_BLINK },
-    { 7000, OWL_SQUAWK_ON },
-    { 8500, OWL_SQUAWK_OFF },
-    { 10000, OWL_BLINK },
+    { 8000, OWL_SQUAWK_ON },
+    { 9500, OWL_SQUAWK_OFF },
+    { 11000, OWL_BLINK },
   };
   constexpr size_t OWL_EVENT_COUNT = sizeof(owlTimeline) / sizeof(owlTimeline[0]);
 
