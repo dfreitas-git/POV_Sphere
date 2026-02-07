@@ -5,6 +5,9 @@
 //
 // Hardware assumptions:
 // - ESP32 using core-0 for the slow stuff: UI, menu, rotary-switch inputs, motor control.  
+//               Within core-0 we set up three freeRTOS tasks: graphics, motor, and UI,  
+//               Each task has its own loop time. highest priority- motor. Middle priority- graphics
+//               lowest priority - UI/rotary-encoder.
 //               core-1 for the fast stuff: framebuffer reading, DMA, LED strip rendering.
 // - SK9822 / DotStar LED chains: 4 rings, each 48 LEDs (total framebuffer 120x48).
 // - A SN74AHCT125 tri-state bus buffer to switch MOSI to one of 4 rings.
@@ -26,7 +29,7 @@
 //
 // - Finally, add an entry into the enum ImageID {} list and the imageTable[IMG_COUNT] array to the images.h file.
 //
-// Image generation:
+// Algorithmic Image generation:
 // - Functions with the name fillBB_<name> are algorithmic generation of patterns.  They are time based and compute
 //   the colors around the globe in terms of a periodic frequency, phase, cycle all derived from the absolute millis() time.
 //   Then we scan the rows/columns of the framebuffer, loading the computed color into the available LED locations.  Think of 
@@ -171,7 +174,7 @@ void setup() {
   constexpr uint32_t base_step = AS5600_COUNTS / COLUMNS;
   nextColumnAngle = (columnIndex + 1) * base_step;
 
-  // Create task to run on core-0 for the UI code
+  // Create task to run on core-0 for the UI code (lowest priority)
   xTaskCreatePinnedToCore(
     uiTask,
     "UI Task",
@@ -182,24 +185,24 @@ void setup() {
     0   //  Core 0
   );
 
-  // Create task to run on core-0 for graphics generation and framebuffer filling
+  // Create task to run on core-0 for graphics generation and framebuffer filling (middle priority)
   xTaskCreatePinnedToCore(
     graphicsTask,
     "Graphics Task",
     3072,
     nullptr,
-    1,
+    2,
     &graphicsTaskHandle,
     0   //  Core 0
   );
 
-  // Create task to run on core-0 for the motor/PLL control loop
+  // Create task to run on core-0 for the motor/PLL control loop (highest priority)
   xTaskCreatePinnedToCore(
     motorTask,
     "Motor Task",
     3072,
     nullptr,
-    1,
+    3,
     &motorTaskHandle,
     0   //  Core 0
   );
@@ -224,7 +227,7 @@ void motorTask(void* parameter) {
   );
   
   // Loop time for sampling the motor angle, adjusting PLL
-  const TickType_t period = pdMS_TO_TICKS(15); 
+  const TickType_t period = pdMS_TO_TICKS(20); 
   TickType_t lastWake = xTaskGetTickCount();
   int pidDiv = 0; // Use to run the PID update at a slower rate
   constexpr uint8_t PID_DIVIDER = 5;

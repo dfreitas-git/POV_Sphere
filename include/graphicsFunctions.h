@@ -47,7 +47,7 @@ constexpr RGB spiralColors[] = {
               };
 
 
-// Set up some pre-determined colors to cycle between (these give good contrast between each pair)
+// Set up some pre-determined colors to cycle between for the checkerboard animation (these give good contrast between each pair)
 constexpr RGB colors[] = {
                 {235,0,0},
                 {0,235,0},
@@ -109,6 +109,7 @@ static OwlAnimState owl = {
 
 
 // Marshmallow structs
+// These are the states that are edge triggeed by the clock
 enum MarshmallowEventType {
   MM_START_ROASTING,
   MM_START_TOASTING,
@@ -118,6 +119,7 @@ enum MarshmallowEventType {
   MM_START_SMOKING
 };
 
+// Each triggered state puts us into a render state where the actual graphics are generated
 enum MarshmallowPhase {
   MM_RAW,
   MM_TOASTING,
@@ -127,12 +129,15 @@ enum MarshmallowPhase {
   MM_SMOKE
 };
 
+// This is the struct filled in the main graphicsFunctions.cpp file that describes the Pinecrest scene
 struct MarshmallowEvent {
   uint32_t timeMs;       // relative to scene start
   MarshmallowEventType type;
   uint32_t phaseTimeMs;  // relative to event start.  How long any phase lerping happens
 };
 
+// This is the struct that is updated based on the state's phase.  It's how we control motion transforms 
+// while rendering for a particular phase.
 struct MarshmallowState {
   MarshmallowPhase phase;
   uint32_t phaseStartTime;
@@ -145,16 +150,15 @@ struct MarshmallowState {
   RGB color;
 };
 
+// Initial state/phase at the beginning of the scene
 static MarshmallowState  mm = {
   .phase = MM_RAW,
   .phaseStartTime = 0,
-  .cx = 66, .cy = 26,
+  .cx = 70, .cy = 26,
   .rotation = 0,
   .halfSize = 3,
   .color = {0,0,0}
 };
-
-
 
 
 // Counter that holds the number of times we ever tried to write a pixel outside the framebuffer bounds
@@ -207,7 +211,7 @@ void fillBB_pinecrest();
 //  Math functions 
 //#################################
 
-// Sine for each column (120 total) by look-up-table for speed
+// Sine for each column (120 total) by look-up-table for speed.  Use this if the regular sin or sinf are too slow.
 constexpr float sineLUT[COLUMNS] = {
      0.0,.052,.105,.156,.208,.259,.309,.358,.407,.454,.500,.545,.588,.629,.669,.707,.749,.777,.809,.839,.866,.891,.914,.934,.951,.966,.978,.988,.995,.999, 
      1.0,.999,.995,.988,.978,.966,.951,.934,.914,.891,.866,.839,.809,.777,.749,.707,.669,.629,.588,.545,.500,.454,.407,.358,.309,.259,.208,.156,.105,.052,

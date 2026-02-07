@@ -26,8 +26,8 @@ enum ImageID {
     IMG_worldMap,
     IMG_saffron,
     IMG_fade,
-    IMG_testL,
-    IMG_testDot,
+  //  IMG_testL,
+  //  IMG_testDot,
     IMG_COUNT
 };
 

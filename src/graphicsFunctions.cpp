@@ -615,7 +615,7 @@ void fillBB_spiralR(){
   static uint32_t lastColorSwitchTime = 0;
   uint32_t now = millis();
 
-  // change color every rev cycle
+  // Change color every rev cycle
   if (now - lastColorSwitchTime >= spiralRevPeriod) {    
     lastColorSwitchTime = now;
     fg0ColorIndex = fg1ColorIndex;
@@ -654,7 +654,7 @@ void fillBB_spiralL(){
   static uint32_t lastColorSwitchTime = 0;
   uint32_t now = millis();
 
-  // change color every rev cycle
+  // Change color every rev cycle
   if (now - lastColorSwitchTime >= spiralRevPeriod) {    
     lastColorSwitchTime = now;
     fg0ColorIndex = fg1ColorIndex;
@@ -693,7 +693,7 @@ void fillBB_spiralD(){
   static uint32_t lastColorSwitchTime = 0;
   uint32_t now = millis();
 
-  // change color every rev cycle
+  // Change color every rev cycle
   if (now - lastColorSwitchTime >= spiralRevPeriod) {    
     lastColorSwitchTime = now;
     fg0ColorIndex = fg1ColorIndex;
@@ -1012,7 +1012,7 @@ void fillBB_pinecrest() {
 
 
   // roasting stick
-  drawLine(67,25,90,18,1,c.gray);  
+  drawLine(71,25,90,18,1,c.gray);  
 
   // The marshmallow
   // define what time events should trigger when and any phase/lerp time for transitions

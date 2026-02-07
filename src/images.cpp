@@ -4,8 +4,8 @@
 // This defines the image functions that will be available to the display
 // display menu item in the user UI
 const Image *imageTable[IMG_COUNT] = {
-    &testDotWrap,
-    &testLWrap,
+    //&testDotWrap,
+    //&testLWrap,
     &helloWorldWrap,
     &fadeWrap,
     &vFadeWrap,
