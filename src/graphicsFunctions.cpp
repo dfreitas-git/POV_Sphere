@@ -35,6 +35,19 @@ float clamp(float val, float minVal, float maxVal) {
   }
 }
 
+// clear the specified framebuffer
+void clearFrameBuffer(uint8_t* frameBuffer) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
+      int idx = (row * COLUMNS + col) * 3;
+      frameBuffer[idx]     = 0;
+      frameBuffer[idx + 1] = 0;
+      frameBuffer[idx + 2] = 0;
+    }
+  }
+}
+
+
 //###################################################################
 // Fill the backbuffer in preperation for the next displayed frame
 // Assumes a 120x48 image imported from Gimp in rgb565 format (two
@@ -1107,6 +1120,69 @@ void fillBB_pinecrest() {
     mmNextEvent = 0;
   }
 }
+
+
+//#############################
+//  Animated Shooting Star
+//#############################
+//     Helper functions 
+void fadeFramebuffer(uint8_t decay) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
+      for (int c = 0; c < 3; c++) {
+        int idx = ((row * COLUMNS + col) * 3) + c;
+        uint8_t v = backBuffer[idx];
+        backBuffer[idx] = (v > decay) ? (v - decay) : 0;
+      }
+    }
+  }
+}
+
+void writeHead(int col, int row, RGB color) {
+  int idx = (row * COLUMNS + col) * 3;
+  backBuffer[idx]     = color.r;
+  backBuffer[idx + 1] = color.g;
+  backBuffer[idx + 2] = color.b;
+}
+
+//  Main shootingStar function  //
+void fillBB_shootingStar() {
+
+  palette c;
+  static RGB nextColor = c.red;
+
+  // Fade existing pixels (contrail)
+  fadeFramebuffer(10); // Larger number fades quicker
+
+  // Persistent head state
+  static float hx = 20.0;
+  static float hy = ROWS - 1;
+
+  const float vx = 0.6;
+  const float vy = -1.0;
+
+  hx += vx;
+  hy += vy;
+  
+  // wrap columns
+  if (hx < 0)        hx += COLUMNS;
+  if (hx >= COLUMNS) hx -= COLUMNS;
+  
+  // respawn only when below screen
+  if (hy < 0) {
+    hx = random(0, COLUMNS);
+    hy = ROWS - 1;
+    nextColor = {uint8_t(random(255)),uint8_t(random(255)),uint8_t(random(255))};
+  }
+  
+  int col = (int)hx;
+  int row = (int)hy;
+  
+  if (row >= 0 && row < ROWS) {
+    writeHead(col, row, nextColor);
+  }
+}
+
 
 
 //#############################################################################

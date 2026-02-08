@@ -176,6 +176,7 @@ static uint32_t outOfBoundsPixelCount = 0;
 //#################################
 float lerp(float a, float b, float f);
 float clamp(float val, float minVal, float maxVal);
+void clearFrameBuffer(uint8_t* frameBuffer);
 void writePixel(int col, int row, const struct RGB& color);
 void cycle_spiral(int numSpirals, int thickness, int twist);
 void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, int drawToRow, const struct RGB& color);
@@ -214,6 +215,7 @@ void fillBB_eyeball();
 void fillBB_image();
 void fillBB_eyeball();
 void fillBB_pinecrest();
+void fillBB_shootingStar();
 
 //#################################
 //  Math functions 

@@ -6,6 +6,7 @@
 const Image *imageTable[IMG_COUNT] = {
     //&testDotWrap,
     //&testLWrap,
+    &shootingStarWrap,
     &helloWorldWrap,
     &fadeWrap,
     &vFadeWrap,

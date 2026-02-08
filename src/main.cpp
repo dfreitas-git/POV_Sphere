@@ -146,8 +146,10 @@ void setup() {
   }
   Wire.setClock(800000);  // Speed up I2c to AS5600
 
-  // Allocate buffers
+  // Allocate frame buffers
   ensureBuffersAllocated();
+  clearFrameBuffer(backBuffer);
+  clearFrameBuffer(frontBuffer);
 
   // Initialize SPI with DMA
   initSpi();
@@ -345,6 +347,13 @@ void graphicsTask(void* parameter) {
           lastAnimateTime = millis();
         }
       }
+      if(previousImageToDisplayIndex != imageToDisplayIndex) {
+        // need to flush the framebuffers if we are starting to display a new image 
+        clearFrameBuffer(backBuffer);
+        clearFrameBuffer(frontBuffer);
+        previousImageToDisplayIndex = imageToDisplayIndex;
+      }
+
       imageTable[imageToDisplayIndex]->functionPtr();
       backBufferFilled = true;
     }

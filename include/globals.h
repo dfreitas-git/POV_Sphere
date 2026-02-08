@@ -56,6 +56,7 @@ extern volatile bool dmaBusy; // indicates a DMA transfer is in flight
 extern uint8_t currentIndex;
 extern bool editingValue;
 extern uint8_t imageToDisplayIndex;
+extern uint8_t previousImageToDisplayIndex;
 
 /* Blink control */
 extern bool blinkOn;

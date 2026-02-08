@@ -59,6 +59,7 @@ volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
 uint8_t currentIndex = 0;
 bool editingValue = false;
 uint8_t imageToDisplayIndex = 0;
+uint8_t previousImageToDisplayIndex = 0;
 
 // Demo mode - When true, rotate through all the display animations
 bool demoAll = false;
