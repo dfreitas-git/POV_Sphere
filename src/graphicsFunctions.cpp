@@ -221,21 +221,23 @@ void fillBB_hBands() {
   int head = (elapsed * ROWS) / 3000;      // 0–47 over 3 seconds
   head %= ROWS;  // Wrap back the start once head reaches the bottom of the Sphere
 
-  // load with R, G, B for index 0,1,2
-  const uint8_t r[3] = {255,0,0};
-  const uint8_t g[3] = {0,255,0};
-  const uint8_t b[3] = {0,0,255};
+  // load with R, G, B and black for index 0,1,2,3
+  const uint8_t r[4] = {255,0,0,0};
+  const uint8_t g[4] = {0,255,0,0};
+  const uint8_t b[4] = {0,0,255,0};
 
   // for each row, figure out which color band it lays in
   for (int row = 0; row < ROWS; row++) {
     int d = (head - row + ROWS) % ROWS;   // distance behind the head this current row is
     int colorIndex;
+
+    // Insert a black band between colors
     if (d < 8)        colorIndex=0;
-    else if (d < 16)   colorIndex=1;
-    else if (d < 24)   colorIndex=2;
-    else if (d < 32)   colorIndex=0;
-    else if (d < 40)   colorIndex=1;
-    else if (d < 48)   colorIndex=2;
+    else if (d < 16)   colorIndex=3;
+    else if (d < 24)   colorIndex=1;
+    else if (d < 32)   colorIndex=3;
+    else if (d < 40)   colorIndex=2;
+    else if (d < 48)   colorIndex=3;
 
     // Now write that color all the way around the Sphere
     for (int col = 0; col < 120; col++) {
