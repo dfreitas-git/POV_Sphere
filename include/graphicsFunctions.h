@@ -167,6 +167,18 @@ static MarshmallowState  mm = {
   .color = {0,0,0}
 };
 
+// Struct for the shootingStar animation
+#define NUM_STARS 20
+
+typedef struct {
+  float x;
+  float y;
+  float vx;
+  float vy;
+  uint8_t r, g, b;
+} Star;
+
+extern Star stars[];
 
 // Counter that holds the number of times we ever tried to write a pixel outside the framebuffer bounds
 static uint32_t outOfBoundsPixelCount = 0;
@@ -177,6 +189,8 @@ static uint32_t outOfBoundsPixelCount = 0;
 float lerp(float a, float b, float f);
 float clamp(float val, float minVal, float maxVal);
 void clearFrameBuffer(uint8_t* frameBuffer);
+void initShootingStars();
+void initSparkShower();
 void writePixel(int col, int row, const struct RGB& color);
 void cycle_spiral(int numSpirals, int thickness, int twist);
 void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, int drawToRow, const struct RGB& color);
@@ -216,6 +230,7 @@ void fillBB_image();
 void fillBB_eyeball();
 void fillBB_pinecrest();
 void fillBB_shootingStar();
+void fillBB_sparkShower();
 
 //#################################
 //  Math functions 

@@ -151,6 +151,11 @@ void setup() {
   clearFrameBuffer(backBuffer);
   clearFrameBuffer(frontBuffer);
 
+  // Need to initialize the shootingStar seeds
+  if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
+    initShootingStars();
+  }
+
   // Initialize SPI with DMA
   initSpi();
 
@@ -351,6 +356,9 @@ void graphicsTask(void* parameter) {
         // need to flush the framebuffers if we are starting to display a new image 
         clearFrameBuffer(backBuffer);
         clearFrameBuffer(frontBuffer);
+        if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
+          initShootingStars();
+        }
         previousImageToDisplayIndex = imageToDisplayIndex;
       }
 

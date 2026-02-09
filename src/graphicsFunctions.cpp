@@ -1,6 +1,7 @@
 
 #include <graphicsFunctions.h>
 
+
 // Each function can be selected by the user from the rotary-encoder/OLED interface
 //
 // The functions take the absolute time (millis()) and compute animation cycles, phase, 
@@ -8,6 +9,9 @@
 // iterate across the available rows/columns and compute those pixels (basically a coarse
 // mapping of the sphere data to the sparse LED matrix overlayed onto it).
 
+
+// Global definitions
+Star stars[NUM_STARS];
 
 // generally helpful utility functions
 
@@ -1138,6 +1142,7 @@ void fadeFramebuffer(uint8_t decay) {
   }
 }
 
+// Write the leading pixel for the shootingStar
 void writeHead(int col, int row, RGB color) {
   int idx = (row * COLUMNS + col) * 3;
   backBuffer[idx]     = color.r;
@@ -1145,44 +1150,116 @@ void writeHead(int col, int row, RGB color) {
   backBuffer[idx + 2] = color.b;
 }
 
-//  Main shootingStar function  //
-void fillBB_shootingStar() {
+// Set up parameters for multiple shootingStars
+void initShootingStars() {
+  for (int i = 0; i < NUM_STARS; i++) {
+    stars[i].x  = random(0, COLUMNS);
+    stars[i].y  = random(0, ROWS);
+    stars[i].vx = random(-30, 30) / 100.0;   // subtle drift
+    stars[i].vy = - (random(80, 140) / 100.0);
 
-  palette c;
-  static RGB nextColor = c.red;
-
-  // Fade existing pixels (contrail)
-  fadeFramebuffer(10); // Larger number fades quicker
-
-  // Persistent head state
-  static float hx = 20.0;
-  static float hy = ROWS - 1;
-
-  const float vx = 0.6;
-  const float vy = -1.0;
-
-  hx += vx;
-  hy += vy;
-  
-  // wrap columns
-  if (hx < 0)        hx += COLUMNS;
-  if (hx >= COLUMNS) hx -= COLUMNS;
-  
-  // respawn only when below screen
-  if (hy < 0) {
-    hx = random(0, COLUMNS);
-    hy = ROWS - 1;
-    nextColor = {uint8_t(random(255)),uint8_t(random(255)),uint8_t(random(255))};
-  }
-  
-  int col = (int)hx;
-  int row = (int)hy;
-  
-  if (row >= 0 && row < ROWS) {
-    writeHead(col, row, nextColor);
+    stars[i].r = random(0, 255);
+    stars[i].g = random(0, 255);
+    stars[i].b = random(0, 255);
   }
 }
 
+// Main rendering function
+void fillBB_shootingStar() {
+
+  // larger number fades quicker
+  fadeFramebuffer(10);   
+
+  for (int i = 0; i < NUM_STARS; i++) {
+
+    Star *s = &stars[i];
+
+    s->x += s->vx;
+    s->y += s->vy;
+
+    // wrap columns
+    if (s->x < 0)        s->x += COLUMNS;
+    if (s->x >= COLUMNS) s->x -= COLUMNS;
+
+    // respawn
+    if (s->y < 0) {
+      s->x = random(0, COLUMNS);
+      s->y = ROWS - 1;
+
+      // Alter these to change the glide slope
+      //s->vx = random(-30, 30) / 100.0;  // More vertical orientation
+      s->vx = random(-300, 300) / 100.0;  // More horizontal motion
+      s->vy = - (random(80, 140) / 100.0);
+
+      // Every now and then throw in a "flare"
+      if (random(0, 100) < 3) {
+        s->r = s->g = s->b = 255;
+      } else {
+        s->r = random(0, 255);
+        s->g = random(0, 255);
+        s->b = random(0, 255);
+      }
+    }
+
+    int col = (int)s->x;
+    int row = (int)s->y;
+
+    int idx = (row * COLUMNS + col) * 3;
+    backBuffer[idx]     = s->r;
+    backBuffer[idx + 1] = s->g;
+    backBuffer[idx + 2] = s->b;
+  }
+}
+
+// Helper functions for the sparkShower
+void shiftDown() {
+  for (int row = 0; row < ROWS - 1; row++) {
+    for (int col = 0; col < COLUMNS; col++) {
+      int dst = (row * COLUMNS + col) * 3;
+      int src = ((row + 1) * COLUMNS + col) * 3;
+      backBuffer[dst]     = backBuffer[src];
+      backBuffer[dst + 1] = backBuffer[src + 1];
+      backBuffer[dst + 2] = backBuffer[src + 2];
+    }
+  }
+
+  // Clear the top row (we'll re-inject)
+  int topRow = ROWS - 1;
+  for (int col = 0; col < COLUMNS; col++) {
+    int idx = (topRow * COLUMNS + col) * 3;
+    backBuffer[idx]     = 0;
+    backBuffer[idx + 1] = 0;
+    backBuffer[idx + 2] = 0;
+  }
+}
+
+// Main spark rendering function
+
+void fillBB_sparkShower() {
+
+  fadeFramebuffer(7);   // short persistence
+  shiftDown();          // actual downward motion
+
+  int topRow = ROWS - 1;
+
+  for (int col = 0; col < COLUMNS; col++) {
+
+    // emission probability per column
+    if (random(0, 1000) < 80) {
+
+      int idx = (topRow * COLUMNS + col) * 3;
+
+      uint8_t v = random(150, 255);
+
+      //backBuffer[idx]     = v;
+      //backBuffer[idx + 1] = v;
+      //backBuffer[idx + 2] = v;
+      backBuffer[idx]     = random(255);
+      backBuffer[idx + 1] = random(255);
+      backBuffer[idx + 2] = random(255);
+    }
+  }
+}
 
 
 //#############################################################################

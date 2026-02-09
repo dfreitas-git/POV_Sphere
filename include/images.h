@@ -8,6 +8,7 @@
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
+    IMG_sparkShowerWrap,
     IMG_shootingStarWrap,
     IMG_pinecrestWrap,
     IMG_eyeballWrap,
@@ -62,6 +63,7 @@ extern void fillBB_flower();
 extern void fillBB_eyeball();
 extern void fillBB_pinecrest();
 extern void fillBB_shootingStar();
+extern void fillBB_sparkShower();
 extern const Image *imageTable[IMG_COUNT];
 
 static const struct {
@@ -2234,4 +2236,14 @@ const Image shootingStarWrap = {
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
     .functionPtr = fillBB_shootingStar,
+};
+
+// sparkShower
+const Image sparkShowerWrap = {
+    .name = "SparkShwr",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_sparkShower,
 };
