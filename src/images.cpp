@@ -26,4 +26,5 @@ const Image *imageTable[IMG_COUNT] = {
     &saffronWrap,
     &worldMapWrap,
     &pinecrestWrap,
+    &val_2026Wrap,
 };
