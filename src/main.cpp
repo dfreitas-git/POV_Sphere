@@ -151,9 +151,11 @@ void setup() {
   clearFrameBuffer(backBuffer);
   clearFrameBuffer(frontBuffer);
 
-  // Need to initialize the shootingStar seeds
+  // Need to initialize the shootingStar of fireworks seeds
   if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
     initShootingStars();
+  } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
+    initRocket();
   }
 
   // Initialize SPI with DMA
@@ -358,6 +360,8 @@ void graphicsTask(void* parameter) {
         clearFrameBuffer(frontBuffer);
         if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
           initShootingStars();
+        } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
+          initRocket();
         }
         previousImageToDisplayIndex = imageToDisplayIndex;
       }

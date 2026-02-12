@@ -176,6 +176,9 @@ typedef struct {
   float vx;
   float vy;
   uint8_t r, g, b;
+  uint16_t age;
+  uint16_t maxAge;
+  bool active;
 } Star;
 
 extern Star stars[];
@@ -191,6 +194,8 @@ float clamp(float val, float minVal, float maxVal);
 void clearFrameBuffer(uint8_t* frameBuffer);
 void initShootingStars();
 void initSparkShower();
+void initRocket();
+void initExplosion(float x, float y);
 void writePixel(int col, int row, const struct RGB& color);
 void cycle_spiral(int numSpirals, int thickness, int twist);
 void drawSpiral(uint32_t phase, int K, int numSpirals, int thickness, int drawToRow, const struct RGB& color);
@@ -231,6 +236,7 @@ void fillBB_eyeball();
 void fillBB_pinecrest();
 void fillBB_shootingStar();
 void fillBB_sparkShower();
+void fillBB_fireworks();
 
 //#################################
 //  Math functions 

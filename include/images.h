@@ -8,29 +8,30 @@
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
-    IMG_sparkShowerWrap,
-    IMG_shootingStarWrap,
-    IMG_pinecrestWrap,
-    IMG_eyeballWrap,
-    IMG_flowerWrap,
-    IMG_diamondWrap,
-    IMG_spiralLWrap,
-    IMG_spiralRWrap,
-    IMG_spiralDWrap,
-    IMG_pacmanWrap,
-    IMG_pacman1Wrap,
-    IMG_checkerWrap,
-    IMG_hbands,
-    IMG_paint,
-    IMG_hFade,
-    IMG_vFade,
-    IMG_helloWorld,
-    IMG_worldMap,
-    IMG_saffron,
-    //IMG_val_2026,
+    IMG_fireworksWrap,
     IMG_roadrun,
     IMG_donduck,
+    IMG_helloWorld,
     IMG_fade,
+    IMG_vFade,
+    IMG_hFade,
+    IMG_hbands,
+    IMG_sparkShowerWrap,
+    IMG_shootingStarWrap,
+    IMG_paint,
+    IMG_spiralRWrap,
+    IMG_spiralLWrap,
+    IMG_spiralDWrap,
+    IMG_checkerWrap,
+    IMG_flowerWrap,
+    IMG_diamondWrap,
+    IMG_pacman1Wrap,
+    IMG_pacmanWrap,
+    IMG_eyeballWrap,
+    IMG_saffron,
+    IMG_worldMap,
+    IMG_pinecrestWrap,
+  //IMG_val_2026,
   //  IMG_testL,
   //  IMG_testDot,
     IMG_COUNT
@@ -67,6 +68,7 @@ extern void fillBB_eyeball();
 extern void fillBB_pinecrest();
 extern void fillBB_shootingStar();
 extern void fillBB_sparkShower();
+extern void fillBB_fireworks();
 extern const Image *imageTable[IMG_COUNT];
 
 static const struct {
@@ -3602,4 +3604,14 @@ const Image sparkShowerWrap = {
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
     .functionPtr = fillBB_sparkShower,
+};
+
+// fireworks
+const Image fireworksWrap = {
+    .name = "Fireworks",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = fillBB_fireworks,
 };

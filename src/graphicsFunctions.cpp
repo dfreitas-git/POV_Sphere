@@ -13,6 +13,14 @@
 // Global definitions
 Star stars[NUM_STARS];
 
+typedef enum {
+  FIREWORK_ROCKET,
+  FIREWORK_EXPLOSION
+} FireworkState;
+
+static FireworkState fwState = FIREWORK_ROCKET;
+static uint32_t stateStartTime = 0;
+
 // generally helpful utility functions
 
 // linear interpolation.  Return number between a and b.  f is interpolation factor between 0 and 1.0.
@@ -1212,6 +1220,133 @@ void fillBB_shootingStar() {
     backBuffer[idx + 2] = s->b;
   }
 }
+
+// ###############################################
+// Functions for the fireworks animation
+// ###############################################
+uint8_t NUM_EXPLOSION_STARS;
+void initRocket() {
+
+  Star *s = &stars[0];
+
+  s->x  = random(0, COLUMNS);
+  s->y  = 0;   // bottom
+
+  // diagonal upward motion
+  s->vx = random(-100, 100) / 100.0;   // add horizontal drift
+  s->vy = random(120, 160) / 100.0;  // strong upward velocity
+
+  s->r = 255;
+  s->g = 200;
+  s->b = 100;
+
+  fwState = FIREWORK_ROCKET;
+  stateStartTime = millis();
+}
+
+void initExplosion(float x, float y) {
+
+  uint8_t r,g,b;
+  r = random(150, 255);
+  g = random(100, 255);
+  b = random(100, 255);
+  float speed = random(60, 160) / 100.0;
+  NUM_EXPLOSION_STARS =  random(16,20);
+
+  for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
+    Star *s = &stars[i];
+
+    s->x = x;
+    s->y = y;
+
+    float angle = (TWO_PI / NUM_EXPLOSION_STARS) * i;
+
+    s->vx = cos(angle) * speed;
+    s->vy = sin(angle) * speed;
+    s->r = r;
+    s->g = g;
+    s->b = b;
+    s->age = 0;
+    //s->maxAge = random(18, 35);   // ~0.3–0.6 sec at 60fps
+    s->maxAge = 15;            // Keep them all the same size  
+    s->active = true;
+  }
+
+  fwState = FIREWORK_EXPLOSION;
+  stateStartTime = millis();
+}
+
+// ####################
+// Main Fireworks code
+// ####################
+void fillBB_fireworks() {
+
+  //fadeFramebuffer(12);
+  fadeFramebuffer(8);   // smaller fades slower
+
+  switch (fwState) {
+    case FIREWORK_ROCKET: {
+      Star *s = &stars[0];
+      s->x += s->vx;
+      s->y += s->vy;
+
+      // wrap horizontally
+      if (s->x < 0)        s->x += COLUMNS;
+      if (s->x >= COLUMNS) s->x -= COLUMNS;
+
+      int col = (int)s->x;
+      int row = (int)s->y;
+
+      if (row >= 0 && row < ROWS) {
+        writeHead(col, row, {s->r, s->g, s->b});
+      }
+
+      // explode at 2/3 height
+      if (s->y > (ROWS * 0.66)) {
+        initExplosion(s->x, s->y);
+      }
+
+    } break;
+
+    case FIREWORK_EXPLOSION: {
+      for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
+        Star *s = &stars[i];
+
+        if (!s->active) continue;
+
+        s->x += s->vx;
+        s->y += s->vy;
+
+        s->vx *= 0.97;   // optional drag
+        s->vy *= 0.97;
+
+       if (s->x < 0)        s->x += COLUMNS;
+       if (s->x >= COLUMNS) s->x -= COLUMNS;
+
+        s->age++;
+
+        if (s->age >= s->maxAge) {
+          s->active = false;
+          continue;
+        }
+
+        int col = (int)s->x;
+        int row = (int)s->y;
+        
+        if (col >= 0 && col < COLUMNS && row >= 0 && row < ROWS) {
+          writeHead(col, row, {s->r, s->g, s->b});
+        }
+      }
+
+      // after 1200ms restart cycle
+      if (millis() - stateStartTime > 700) {
+        initRocket();
+      }
+
+    } break;
+  }
+}
+
 
 // Helper functions for the sparkShower
 void shiftDown() {
