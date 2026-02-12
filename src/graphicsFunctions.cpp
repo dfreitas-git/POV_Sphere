@@ -1235,7 +1235,6 @@ void initRocket() {
   // diagonal upward motion
   s->vx = random(-100, 100) / 100.0;   // add horizontal drift
   s->vy = random(120, 160) / 100.0;  // strong upward velocity
-
   s->r = 255;
   s->g = 200;
   s->b = 100;
@@ -1281,16 +1280,14 @@ void initExplosion(float x, float y) {
 // ####################
 void fillBB_fireworks() {
 
-  //fadeFramebuffer(12);
-  fadeFramebuffer(8);   // smaller fades slower
-
   switch (fwState) {
     case FIREWORK_ROCKET: {
+      fadeFramebuffer(30);   // fade the rocket trail faster
       Star *s = &stars[0];
       s->x += s->vx;
       s->y += s->vy;
 
-      // wrap horizontally
+      // wrap horizontally across the column seam
       if (s->x < 0)        s->x += COLUMNS;
       if (s->x >= COLUMNS) s->x -= COLUMNS;
 
@@ -1309,6 +1306,7 @@ void fillBB_fireworks() {
     } break;
 
     case FIREWORK_EXPLOSION: {
+      fadeFramebuffer(8);   // Slower fade for the firework burst
       for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
         Star *s = &stars[i];
 
@@ -1338,17 +1336,18 @@ void fillBB_fireworks() {
         }
       }
 
-      // after 1200ms restart cycle
+      // after 700ms restart cycle
       if (millis() - stateStartTime > 700) {
         initRocket();
       }
-
     } break;
   }
 }
 
 
+//######################################
 // Helper functions for the sparkShower
+//######################################
 void shiftDown() {
   for (int row = 0; row < ROWS - 1; row++) {
     for (int col = 0; col < COLUMNS; col++) {
@@ -1371,7 +1370,6 @@ void shiftDown() {
 }
 
 // Main spark rendering function
-
 void fillBB_sparkShower() {
 
   fadeFramebuffer(7);   // short persistence
