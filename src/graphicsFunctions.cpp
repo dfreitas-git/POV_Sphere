@@ -11,8 +11,10 @@
 
 
 // Global definitions
+// This is used in the shootingStar animation.  Its the number of stars shooting at any given time
 Star stars[NUM_STARS];
 
+// State variables for the fireworks animation.  ROCKET is for the single rising streak, EXPLOSION is when the "spokes" shoot out
 typedef enum {
   FIREWORK_ROCKET,
   FIREWORK_EXPLOSION
@@ -21,7 +23,9 @@ typedef enum {
 static FireworkState fwState = FIREWORK_ROCKET;
 static uint32_t stateStartTime = 0;
 
+// ######################################
 // generally helpful utility functions
+// ######################################
 
 // linear interpolation.  Return number between a and b.  f is interpolation factor between 0 and 1.0.
 float lerp(float a, float b, float f) {
@@ -143,10 +147,12 @@ void fillBB_fade() {
     g8Base = uint8_t(random(256));
     b8Base = uint8_t(random(256));
   }
+  // Adjust the overall brightness
   r8 = r8Base * bright;
   g8 = g8Base * bright;
   b8 = b8Base * bright;
 
+  // Now write the pixels into the framebuffer
   for (uint8_t col = 0; col < COLUMNS; col++) {
     for (uint8_t row = 0; row < ROWS; row++) {
       backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
@@ -291,6 +297,9 @@ void fillBB_hFade() {
   }
   for (int col = 0; col < COLUMNS; col++) {
     for (int row = 0; row < ROWS; row++) {
+
+      // smooth sinewave brightness fading
+      // just cycle through R/G/B one at a time
       int bright = uint8_t((rowSin[row] * 0.5f + 0.5f) * colorBright);
       uint8_t r8 = 0, g8 = 0, b8 = 0;
       switch (cycle % 3) {
@@ -337,8 +346,11 @@ void fillBB_vFade() {
     for (int row = 0; row < ROWS; row++) {
       float phi = (row / float(ROWS)) * PI - PI/2;
 
+      // smooth sinewave brightness fading
+      // just cycle through R/G/B one at a time
       int bright = uint8_t((sin(theta * 6 + animatePhase) * 0.5f + 0.5f) * colorBright);
 
+      // just cycle through R/G/B one at a time
       uint8_t r8 = 0, g8 = 0, b8 = 0;
       switch (cycle % 3) {
         case 0: r8 = bright; break;
@@ -455,7 +467,6 @@ void fillBB_pacman() {
   drawTriangle({52,32}, {60,42}, {60,22}, c.yellow);
 
   // Animate the mouth by drawing open/close based on the cycle we are in
-  
   static bool open = false;
   if(cycle != lastCycle) {
     open = !open;
@@ -559,6 +570,7 @@ void fillBB_diamond() {
     animateCount += animateIncrement;
   }
 
+  // diamonds grow and shrink
   drawDiamond(20, 24, animateCount, animateCount, c.yellow);
   drawDiamond(20, 24, animateCount-borderWidth, animateCount-borderWidth, c.purple);
 
@@ -608,7 +620,8 @@ void fillBB_flower() {
     animateCount += animateIncrement;
   }
 
-  // From top to bottome
+  // From top to bottom
+  // Just pull the middle vertex up/down to grow the triangles
   drawTriangle({0,0},{20,animateCount},{39,0}, c.red);
   drawTriangle({40,0},{60,animateCount},{79,0}, c.blue);
   drawTriangle({80,0},{100,animateCount},{119,0}, c.green);
@@ -766,13 +779,14 @@ void fillBB_spiralD(){
       writePixel(col, row, bgColor);
     }
   }
+  // One spiral is fixed height, the other will grow from the bottom to the top
   drawSpiral(phase, K, numSpirals, thickness, animateCount, spiralColors[fg0ColorIndex]);
   drawSpiral(phase, -K, numSpirals, thickness, ROWS-1, spiralColors[fg1ColorIndex]);
 
 }
 
 //#############################
-//  Animated blinking eyeball
+//  Animated blinking eyeballs
 //#############################
 void fillBB_eyeball() {
 
@@ -832,7 +846,7 @@ void fillBB_eyeball() {
   drawEyeball(100, 25, 14, c.brown, c.black, c.mediumgray, position[posIndex] );
 
   if(blinkTrigger < 0) {
-    // Mask the eyeball from the top down over the blinkPeriod in flesh tone (like an eyelid)
+    // Mask the eyeball from the top down over the blinkPeriod 
     if(whichEyeToBlink == 0) {
       drawRect(6,blinkToRow,34,47, 0,c.black);
     } else if(whichEyeToBlink == 1) {
@@ -1136,9 +1150,13 @@ void fillBB_pinecrest() {
 }
 
 
-//#############################
+//###############################################################################
 //  Animated Shooting Star
-//#############################
+//  We have an active "star" (head) that traces a path into the framebuffer, then
+//  we use a fade function to go erase the trails with a defined time-constant.
+//  Renders a a bright star shooting across the sphere with the tail fading off
+//  behind it.
+//###############################################################################
 //     Helper functions 
 void fadeFramebuffer(uint8_t decay) {
   for (int col = 0; col < COLUMNS; col++) {
@@ -1177,8 +1195,9 @@ void initShootingStars() {
 // Main rendering function
 void fillBB_shootingStar() {
 
-  // larger number fades quicker
-  fadeFramebuffer(10);   
+  // Iterate over the entire framebuffer subtracting brightness from each
+  // pixel until we fade to black
+  fadeFramebuffer(10);   // larger number fades quicker
 
   for (int i = 0; i < NUM_STARS; i++) {
 
@@ -1223,6 +1242,8 @@ void fillBB_shootingStar() {
 
 // ###############################################
 // Functions for the fireworks animation
+// A classic rocket streaking up and exploding into 
+// a starburst which then fades out
 // ###############################################
 uint8_t NUM_EXPLOSION_STARS;
 void initRocket() {
@@ -1275,9 +1296,10 @@ void initExplosion(float x, float y) {
   stateStartTime = millis();
 }
 
-// ####################
+// ###########################################################
 // Main Fireworks code
-// ####################
+// Control the rocket/explosion phases with state variables
+// ###########################################################
 void fillBB_fireworks() {
 
   switch (fwState) {
@@ -1294,11 +1316,12 @@ void fillBB_fireworks() {
       int col = (int)s->x;
       int row = (int)s->y;
 
+      // Write the bright head of the rocket path
       if (row >= 0 && row < ROWS) {
         writeHead(col, row, {s->r, s->g, s->b});
       }
 
-      // explode at 2/3 height
+      // explode at 2/3 height.
       if (s->y > (ROWS * 0.66)) {
         initExplosion(s->x, s->y);
       }
@@ -1345,9 +1368,12 @@ void fillBB_fireworks() {
 }
 
 
-//######################################
+//##########################################
 // Helper functions for the sparkShower
-//######################################
+// An animation the floods "sparks" out the
+// top of the sphere to cascade down until 
+// fading out
+//##########################################
 void shiftDown() {
   for (int row = 0; row < ROWS - 1; row++) {
     for (int col = 0; col < COLUMNS; col++) {
@@ -1581,6 +1607,9 @@ void drawLetter(uint8_t (*letter)[7], int llX ,int llY, const struct RGB& bgColo
 //####################################################
 void drawCircle(int centerX, int centerY, int radius, const struct RGB& color) {
   int plusMinus;
+
+  // circle is symetric so all we need to do is compute +/- Y and fill in the 
+  // column pixels between the two points
   for (int col = centerX - radius; col <= centerX + radius; col++) {
     plusMinus = sqrt(pow(radius,2) - pow((col - centerX),2));
     for(int row = centerY - plusMinus; row <= centerY + plusMinus; row++) {
@@ -1681,7 +1710,7 @@ void drawDiamond(int centerX, int centerY, int extentX, int extentY, const struc
   int topX = centerX;
   int topY = centerY - extentY;
 
-  // Draw the left half of the diamond with the positive y=mx (remember the "top" is row-0)
+  // Draw the left half of the diamond with the positive y=mx 
   for (int col = leftX; col <= centerX; col++) {
     plusMinus = (float(leftY-topY)/float(topX-leftX)) * (col-leftX);   // Offset X to run from 0 to centerX
     for(int row = centerY - plusMinus; row <= centerY + plusMinus; row++) {

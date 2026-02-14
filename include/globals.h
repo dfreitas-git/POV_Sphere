@@ -29,6 +29,7 @@ extern volatile uint16_t omega_trim;   // Accumulated error between measured ang
 extern uint32_t nextColumnAngle;
 extern uint16_t columnIndex;
 
+// motor RPM calculating and control
 extern uint16_t lastAngle;
 extern float motorRPM;
 extern volatile bool motorOnOffFlag;   // Turn the mhtor on/off
@@ -58,7 +59,7 @@ extern bool editingValue;
 extern uint8_t imageToDisplayIndex;
 extern uint8_t previousImageToDisplayIndex;
 
-/* Blink control */
+/* Blink control (for blinking the menu cursor)*/
 extern bool blinkOn;
 extern uint32_t lastBlink;
 extern const uint32_t blinkInterval; 
@@ -67,8 +68,8 @@ extern const uint32_t blinkInterval;
 extern const uint8_t NUMBER_OF_DISPLAY_FILES;
 extern const char* imageToDisplay[];
 
-extern volatile bool scrollOnOffFlag; 
-extern bool demoAll;
+extern volatile bool scrollOnOffFlag;   // Whether or not the sphere is rotating
+extern bool demoAll;  // Run each image for 10 seconds on the sphere
 
 
 // Constant globals
@@ -88,9 +89,9 @@ constexpr int RING2_ENB = 16;      // SN74AHCT125 bus driver bit 2 select
 constexpr int RING3_ENB = 17;      // SN74AHCT125 bus driver bit 3 select
 
 // LED / frame geometry
-constexpr uint32_t AS5600_COUNTS = 4096;  // number of counts in 360 degrees from the AS5600 sensor
+constexpr uint32_t AS5600_COUNTS = 4096;      // number of counts in 360 degrees from the AS5600 sensor
 constexpr int ROWS = 48;                      // vertical rows (LEDs per ring)
-constexpr uint32_t COLUMNS = 120;                  // total angular columns in a revolution
+constexpr uint32_t COLUMNS = 120;             // total angular columns in a revolution
 constexpr int RINGS = 4;                      // number of LED rings
 constexpr int COLS_PER_RING = COLUMNS/RINGS;  // number of columns each ring fills
 constexpr int ringEnable[] = {RING0_ENB, RING1_ENB, RING2_ENB, RING3_ENB};  // Pins that control the mux for the serial DMA
@@ -108,8 +109,8 @@ constexpr int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_
 constexpr int TOTAL_COLUMNS_BYTES = COLUMNS * COLUMN_PAYLOAD;
 
 constexpr uint8_t SCROLL_UPDATE_TIME = 100;   // How often (in milliseconds) to update the framebuffer offset pointer.  Controls how fast the image scrolls around the Sphere.
-constexpr uint16_t DEMO_DISPLAY_TIME = 10000;  // Amount of time we give each animation to display during the demo mode.
-constexpr uint8_t MAX_TRIM = 2;           // The most we allow core-0 to adjust the angle being computed by core-1
+constexpr uint16_t DEMO_DISPLAY_TIME = 10000; // Amount of time we give each animation to display during the demo mode.
+constexpr uint8_t MAX_TRIM = 2;               // The most we allow core-0 to adjust the angle being computed by core-1
 
 // Core-1 angle values calculated and pll-locked to core-0 actual angle measurements
 constexpr uint8_t  OMEGA_SHIFT = 16;
@@ -123,9 +124,10 @@ constexpr uint32_t COLUMN_REM  = AS5600_COUNTS % COLUMNS;      // 16
 //##########################
 // PID motor speed control
 //##########################
-constexpr int MOTOR_PWM_PIN = 25; // To control the motor speed
+constexpr int MOTOR_PWM_PIN = 25;           // To control the motor speed
 constexpr uint32_t samplePeriod_us = 20000; // minimum time (us) between sampling the angle measurement in core-0
-constexpr uint8_t PID_UPDATE_TIME = 100 ;     // How many milliseconds between updating the motor PWM.
+constexpr uint8_t PID_UPDATE_TIME = 100 ;   // How many milliseconds between updating the motor PWM.
+
 // Output limits (map to motor PWM range)
 constexpr float PWM_MIN = 125.0f;
 constexpr float PWM_MAX = 255.0f;
@@ -140,7 +142,7 @@ constexpr float DERIV_FILTER_TAU = 0.05f;
 // ###########################################################
 //   UI core-0 OLED/rotary-encoder/switch definitions
 // ###########################################################
-/* ==== OLED ======== */
+/* ==== OLED Size and pins ======== */
 constexpr uint8_t SCREEN_WIDTH = 128;
 constexpr uint8_t SCREEN_HEIGHT = 64;
 constexpr uint8_t SDA_OLED = 32;
@@ -148,7 +150,7 @@ constexpr uint8_t SCL_OLED = 33;
 constexpr uint8_t OLED_RESET =    -1 ;    // no reset pin
 constexpr uint8_t OLED_ADDR =     0x3C;
 
-/* ==== Encoder ====== */
+/* ==== Encoder pins ====== */
 constexpr uint8_t ENC_A = 35;
 constexpr uint8_t ENC_B = 34;
 constexpr uint8_t ENC_BTN = 27;

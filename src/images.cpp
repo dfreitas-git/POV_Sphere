@@ -6,6 +6,7 @@
 const Image *imageTable[IMG_COUNT] = {
     //&testDotWrap,
     //&testLWrap,
+    &val_2026Wrap,
     &fireworksWrap,
     &roadrunWrap,
     &donduckWrap,
@@ -29,5 +30,4 @@ const Image *imageTable[IMG_COUNT] = {
     &saffronWrap,
     &worldMapWrap,
     &pinecrestWrap,
-    //&val_2026Wrap,
 };

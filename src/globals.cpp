@@ -22,16 +22,16 @@ uint16_t core_1_omega_trim;     // local copy used by core-1.
 uint32_t lastAngleTime;         // Used by core-1 to calculate dt between angle calculations
 long phase_error;               // Current error between measured angle from core-0 and computed angle on core-1
 
-// Core-1 column position vars
+// Core-1 column position vars (i.e.  What framebuffer column we're displaying)
 uint32_t nextColumnAngle = 0;
 uint16_t columnIndex = 0;
 
 uint16_t lastAngle = 0;
-float motorRPM = 0.0f;
+float motorRPM = 0.0f;              // Current computed RPM
 volatile bool motorOnOffFlag = 0;   // Turn the mhtor on/off
 
 // Motor control PID parameters
-float targetRPM = 360.0;
+float targetRPM = 360.0;   // We can vary this in the UI menu under settings
 float Kp = 0.2f;
 float Ki = 0.8f;
 float Kd = 0.02f;

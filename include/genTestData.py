@@ -1,4 +1,7 @@
 
+# Generate a test pattern to see how different gamma correction
+# displays on the sphere.
+
 WIDTH = 120
 HEIGHT = 48
 

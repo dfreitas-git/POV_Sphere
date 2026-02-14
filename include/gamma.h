@@ -2,6 +2,8 @@
 #pragma once
 
 // Gamma correction look-up-tables.
+// R/G/B all display differently at different intensity levels.  Gamma tables 
+//let us tune different values across the 0-255 range to balance the colors.
 // Generated this table with this python script:
 /* 
 import math

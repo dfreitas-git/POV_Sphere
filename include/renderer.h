@@ -1,4 +1,6 @@
 
+// Headers for the main core-1  rendering engine.  These are the functions that feed the LED's
+
 #pragma once
 
 #include <arduino.h>

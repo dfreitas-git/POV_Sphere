@@ -1,4 +1,6 @@
 
+// Header file for all the menu and user interface functions
+
 #pragma once
 
 #include <arduino.h>
