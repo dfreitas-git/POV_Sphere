@@ -1,40 +1,15 @@
 
 #include <UI.h>
+#include <motor.h>
+#include <Adafruit_SSD1306.h>
+#include <ClickEncoder.h>
+#include <Ticker.h>
 
 // ######################################
 //   Menus and Rotary Encoder for the UI
 // #######################################
 
 
-typedef void (*ActionCallback)(MenuItem*);
-
-struct MenuItem {
-  const char* name;
-  MenuItemType type;
-  MenuItem* parent;
-
-  /* For submenu */
-  MenuItem** children;
-  uint8_t childCount;
-
-  /* For callbacks */
-  ActionCallback callback;
-
-  /* For int value */
-  int* intValue;
-  int minIntVal;
-  int maxIntVal;
-
-  /* For float value */
-  float* floatValue;
-  float minFloatVal;
-  float maxFloatVal;
-
-  /* For option list */
-  const char** options;
-  uint8_t optionCount;
-  uint8_t* optionIndex;
-};
 
 // UI objects
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET);
@@ -116,7 +91,7 @@ void buildMenu() {
     5,
     nullptr,
     nullptr, 0, 0,
-    nullptr, 0, 0,
+    0, 0, 0,
     nullptr, 0, nullptr
   };
 
@@ -128,7 +103,7 @@ void buildMenu() {
     2,
     nullptr,
     nullptr, 0, 0,
-    nullptr, 0, 0,
+    0, 0, 0,
     nullptr, 0, nullptr
   };
 
@@ -139,7 +114,7 @@ void buildMenu() {
     nullptr, 0,
     nullptr,
     &brightness, 0, 10,
-    nullptr, 0, 0,
+    0, 0, 0,
     nullptr, 0, nullptr
   };
 
@@ -154,7 +129,7 @@ void buildMenu() {
     nullptr, 0,
     nullptr,
     nullptr, 0, 0,
-    nullptr, 0, 0,
+    0, 0, 0,
     imageToDisplay, NUMBER_OF_DISPLAY_FILES, &imageToDisplayIndex
   };
 
@@ -165,7 +140,7 @@ void buildMenu() {
     nullptr, 0,
     motorOnOff,
     nullptr, 0, 0,
-    nullptr, 0, 0,
+    0, 0, 0,
     nullptr,0,nullptr
   };
 
@@ -176,7 +151,7 @@ void buildMenu() {
     nullptr, 0,
     scrollOnOff,
     nullptr, 0, 0,
-    nullptr, 0, 0,
+    0, 0, 0,
     nullptr,0,nullptr
   };
 
@@ -187,7 +162,7 @@ void buildMenu() {
     nullptr, 0,
     demoOnOff,
     nullptr, 0, 0,
-    nullptr, 0, 0,
+    0, 0, 0,
     nullptr,0,nullptr
   };
 
@@ -198,7 +173,7 @@ void buildMenu() {
     nullptr, 0,
     nullptr,
     nullptr, 0, 0,
-    &targetRPM, 200.0, 400.0,
+    0, 200.0, 400.0,
     nullptr, 0, nullptr
   };
 
@@ -234,7 +209,7 @@ void drawMenu() {
 
     if (item->type == MENU_FLOAT_VALUE && showValue) {
       oled.setCursor(90, y);
-      oled.print(int(*item->floatValue));
+      oled.print(int(item->floatValue));
     }
 
     if (item->type == MENU_LIST && showValue) {
@@ -259,11 +234,14 @@ void handleRotation(int delta) {
       );
     }
     if (item->type == MENU_FLOAT_VALUE) {
-      *item->floatValue = constrain(
-        *item->floatValue + delta,
+      item->floatValue = constrain(
+        item->floatValue + delta,
         item->minFloatVal,
         item->maxFloatVal
       );
+      if(! strcmp(item->name, "Motor RPM")) {
+        motor.setTargetRPM(item->floatValue);
+      }
     }
 
     if (item->type == MENU_LIST) {

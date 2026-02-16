@@ -8,9 +8,6 @@
 #include <globals.h>
 #include <images.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <ClickEncoder.h>
-#include <Ticker.h>
 
 enum MenuItemType {
   MENU_SUBMENU,
@@ -20,11 +17,42 @@ enum MenuItemType {
   MENU_LIST
 };
 
-extern Adafruit_SSD1306 oled;
-extern ClickEncoder encoder;
-extern Ticker encoderTicker;
+typedef void (*ActionCallback)(MenuItem*);
 
-struct MenuItem;
+struct MenuItem {
+  const char* name;
+  MenuItemType type;
+  MenuItem* parent;
+
+  /* For submenu */
+  MenuItem** children;
+  uint8_t childCount;
+
+  /* For callbacks */
+  ActionCallback callback;
+
+  /* For int value */
+  int* intValue;
+  int minIntVal;
+  int maxIntVal;
+
+  /* For float value */
+  float floatValue;
+  float minFloatVal;
+  float maxFloatVal;
+
+  /* For option list */
+  const char** options;
+  uint8_t optionCount;
+  uint8_t* optionIndex;
+};
+
+extern MenuItem menuRPM;
+
+class Motor;
+extern Motor motor;
+
+
 void motorOnOff(MenuItem*);
 void scrollOnOff(MenuItem*);
 void buildMenu();

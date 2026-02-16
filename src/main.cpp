@@ -59,10 +59,15 @@
 #include <config.h>
 #include <globals.h>
 #include <graphicsFunctions.h>
-#include <images.h>
-#include <UI.h>
-#include <motor.h>
 #include <renderer.h>
+#include <Adafruit_SSD1306.h>
+#include <ClickEncoder.h>
+#include <Ticker.h>
+#include <stdint.h>
+#include <images.h>
+#include <motor.h>
+#include <UI.h>
+
 
 // uncomment this to print the stack size used for each of the freeRTOS tasks
 //#define STACK_CHECK
@@ -96,6 +101,8 @@ inline void IRAM_ATTR sync_low() {
 TaskHandle_t uiTaskHandle;
 TaskHandle_t graphicsTaskHandle;
 TaskHandle_t motorTaskHandle;
+
+Motor motor;
 
 
 //#########################################
@@ -135,10 +142,15 @@ void setup() {
   buildMenu();
 
   // Set up pwm
-  setupMotor();
+  motor.begin();
+  menuRPM.floatValue = motor.getTargetRPM();
+  menuRPM.minFloatVal = motor.getMinRPM();
+  menuRPM.maxFloatVal = motor.getMaxRPM();
+
 
   // Uses default i2c interface to AS5600 to read angle
-  if (!as5600.begin()) {
+  //if (!as5600.begin()) {
+  if (!motor.getSensor().begin()) {
     Serial.println("Could not find AS5600 sensor, check wiring!");
     while (1) {
       delay(10);
@@ -165,7 +177,8 @@ void setup() {
   delay(10);
 
   // Get the angle the motor shaft is starting at and initialize the core-1 angle-accumulator/calculator
-  measuredAngle = as5600.getRawAngle(); 
+  //measuredAngle = as5600.getRawAngle(); 
+  measuredAngle = motor.getSensor().getRawAngle();
   angle_q = measuredAngle; 
 
   // For the core-0 angle measurement update
@@ -247,7 +260,8 @@ void motorTask(void* parameter) {
     int angleDelta;
 
     // Go do a shaft angle measurement so core-1 angle-calculating "pll" can lock to it. 
-    measuredAngle = as5600.getRawAngle();
+    //measuredAngle = as5600.getRawAngle();
+    measuredAngle = motor.getSensor().getRawAngle();
 
     // When we get a new actual shaft-angle measurement, use it to adjust our core-1 computed angle to eliminate any drift
     phase_error = measuredAngle - angle_q;
@@ -288,7 +302,7 @@ void motorTask(void* parameter) {
     //  PID speed regulation
     if (++pidDiv >= PID_DIVIDER) {
       pidDiv = 0;
-      float pwm = updatePID(motorRPM, targetRPM);
+      float pwm = motor.updatePID(motorRPM);
   
       // See if the user wants the motor off
       if(motorOnOffFlag == 0) {
@@ -445,7 +459,7 @@ void loop() {
   core_1_omega_trim = omega_trim;     
 
   // Now compute the angle_q for the current time (i.e. what the Sphere angle currently is)
-  computeCurrentAngle();   
+  motor.computeCurrentAngle();   
 
   uint16_t adjustedAngle = angle_q % AS5600_COUNTS;  // modulo to wrap result in case of overflow
 

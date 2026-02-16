@@ -1,7 +1,17 @@
 
 #pragma once
-#include <stdint.h>
+
 #include <images.h>
+
+class Adafruit_SSD1306;
+extern Adafruit_SSD1306 oled;
+class Ticker;
+extern Ticker encoderTicker;
+class ClickEncoder;
+extern ClickEncoder encoder;
+
+struct MenuItem;
+extern MenuItem menuRPM;
 
 // Mutable globlas
 extern int brightness;               // Sphere LED brightness
@@ -34,19 +44,6 @@ extern uint16_t lastAngle;
 extern float motorRPM;
 extern volatile bool motorOnOffFlag;   // Turn the mhtor on/off
 
-// Motor control PID parameters
-extern float targetRPM;
-extern float Kp;
-extern float Ki;
-extern float Kd;
-extern float Kff; // small feedforward (adjustable)
-
-// Runtime state
-extern float pidIntegral;
-extern float lastError;
-extern float lastDerivative; // filtered derivative
-extern uint32_t lastPidMs;  // Last time PID was updated
-
 // Double buffers allocated on heap (to make swapping trivial)
 extern uint8_t *frontBuffer;   // Used by core-1.  Displayed buffer (contains COLUMNS columns sequentially)
 extern uint8_t *backBuffer;   // Written by core-0 (next frame)
@@ -70,6 +67,7 @@ extern const char* imageToDisplay[];
 
 extern volatile bool scrollOnOffFlag;   // Whether or not the sphere is rotating
 extern bool demoAll;  // Run each image for 10 seconds on the sphere
+
 
 
 // Constant globals

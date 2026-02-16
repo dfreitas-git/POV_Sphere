@@ -1,4 +1,6 @@
 
+#include <Arduino.h>
+#include <stdint.h>
 #include <globals.h>
 
 int brightness = 3;               // Sphere LED brightness
@@ -29,19 +31,6 @@ uint16_t columnIndex = 0;
 uint16_t lastAngle = 0;
 float motorRPM = 0.0f;              // Current computed RPM
 volatile bool motorOnOffFlag = 0;   // Turn the mhtor on/off
-
-// Motor control PID parameters
-float targetRPM = 360.0;   // We can vary this in the UI menu under settings
-float Kp = 0.2f;
-float Ki = 0.8f;
-float Kd = 0.02f;
-float Kff = 0.55f; // small feedforward (adjustable)
-
-// Runtime state
-float pidIntegral = 0.0f;
-float lastError = 0.0f;
-float lastDerivative = 0.0f; // filtered derivative
-uint32_t lastPidMs = 0;  // Last time PID was updated
 
 
 //########################
