@@ -639,9 +639,6 @@ void fillBB_flower() {
 //#######################################
 void cycle_spiral(int numSpirals, int thickness, int twist){
 
-  // How long between color changes
-  constexpr uint32_t spiralRevPeriod = 3000; //in mS 
-
   // How quickly we do framebuffer updates (in ms)
   uint16_t animatePeriod = 50;
   static int animateCount = 1;
@@ -660,7 +657,9 @@ void cycle_spiral(int numSpirals, int thickness, int twist){
 
   // Increment the animate count when we see a cycle transition
   // We increment up and down so the pattern rises/falls
+  // Switch colors once the spiral rise and falls once
   static int animateIncrement = 1;
+  static bool switchColors = false;
   if( cycle != lastCycle){
     lastCycle = cycle;
     if(animateCount >= ROWS-1) {
@@ -668,13 +667,14 @@ void cycle_spiral(int numSpirals, int thickness, int twist){
     }
     if(animateCount <= 1) {
       animateIncrement = 1;
+      switchColors = true;
     }
     animateCount += animateIncrement;
   }
 
-  // Change color every rev cycle
-  if (now - lastColorSwitchTime >= spiralRevPeriod) {    
-    lastColorSwitchTime = now;
+  // Change color once the spiral has done one rise/fall
+  if (switchColors) {    
+    switchColors = false;
     fg0ColorIndex = fg1ColorIndex;
     fg1ColorIndex += 1;
 
@@ -744,8 +744,30 @@ void fillBB_spiralD(){
   static uint32_t lastColorSwitchTime = 0;
   uint32_t now = millis();
 
-  // Change color every rev cycle
-  if (now - lastColorSwitchTime >= spiralRevPeriod) {    
+  // What animate cycle are we in?
+  uint32_t cycle = now / animatePeriod; 
+  static uint32_t lastCycle = 0;
+
+  // Increment the animate count when we see a cycle transition
+  // We increment up and down so the pattern rises/falls
+  // Switch colors once the spiral rise and falls once
+  static int animateIncrement = 1;
+  static bool switchColors = false;
+  if( cycle != lastCycle){
+    lastCycle = cycle;
+    if(animateCount >= ROWS-1) {
+      animateIncrement = -1;
+    }
+    if(animateCount <= 1) {
+      animateIncrement = 1;
+      switchColors = true;
+    }
+    animateCount += animateIncrement;
+  }
+
+  // Change color once the spiral has done one rise/fall
+  if (switchColors) {    
+    switchColors = false;
     lastColorSwitchTime = now;
     fg0ColorIndex = fg1ColorIndex;
     fg1ColorIndex += 1;
@@ -755,23 +777,6 @@ void fillBB_spiralD(){
     }
   }
 
-  // What animate cycle are we in?
-  uint32_t cycle = now / animatePeriod; 
-  static uint32_t lastCycle = 0;
-
-  // Increment the animate count when we see a cycle transition
-  // We increment up and down so the pattern rises/falls
-  static int animateIncrement = 1;
-  if( cycle != lastCycle){
-    lastCycle = cycle;
-    if(animateCount >= ROWS-1) {
-      animateIncrement = -1;
-    }
-    if(animateCount <= 1) {
-      animateIncrement = 1;
-    }
-    animateCount += animateIncrement;
-  }
 
   // Fill the background
   for (int col = 0; col < COLUMNS; col++) {
@@ -781,7 +786,7 @@ void fillBB_spiralD(){
   }
   // One spiral is fixed height, the other will grow from the bottom to the top
   drawSpiral(phase, K, numSpirals, thickness, animateCount, spiralColors[fg0ColorIndex]);
-  drawSpiral(phase, -K, numSpirals, thickness, ROWS-1, spiralColors[fg1ColorIndex]);
+  drawSpiral(phase, -K, numSpirals, thickness, animateCount, spiralColors[fg1ColorIndex]);
 
 }
 
