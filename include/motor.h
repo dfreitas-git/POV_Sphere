@@ -1,23 +1,9 @@
 
-//Headers for the motor control functions
-
-/*
-#pragma once
-
-#include <Arduino.h>
-#include <stdint.h>
-#include <globals.h>
-#include <Adafruit_AS5600.h>
-
-
-extern Adafruit_AS5600 as5600;
-
-// Prototypes
-float updatePID(float rpmMeasured, float targetRPM);
-void setupMotor();
-void computeCurrentAngle();
-*/
-
+// Class definition  for the motor control class
+// Handles measuring the AS5600 motor shaft angle measurement, computing the actual
+// motor RPM, controlling a PID loop to regulate the RPM and generating PLL control
+// terms to send to the core-1 rendering engine which runs a virtual-motor to compute
+// the column angle for rendering column pixels.
 
 #pragma once
 
