@@ -9,6 +9,7 @@
 //   Menus and Rotary Encoder for the UI
 // #######################################
 
+// Used to create a "non-this" based function call for the encoder object
 UI* UI::instance = nullptr;
 
 // UI constructor
@@ -29,6 +30,8 @@ void UI::begin() {
 }
 
 /* === Encoder ISR ==== */
+// Need the "if(UI::instance) check to be sure the ISR didn't fire 
+// before we assigned the object pointer
 void UI::encoderServiceStatic() {
   if(UI::instance) UI::instance->encoder.service();
 }

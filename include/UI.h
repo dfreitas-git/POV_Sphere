@@ -75,6 +75,9 @@ public:
 private:
     void buildMenu();
     void updateBlink();
+
+    // Need these static variables to avoid the "this" pointer since the tickerEncoder 
+    // can't deal with that
     static UI* instance;
     static void encoderServiceStatic();
 
