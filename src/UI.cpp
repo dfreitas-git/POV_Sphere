@@ -9,19 +9,29 @@
 //   Menus and Rotary Encoder for the UI
 // #######################################
 
+UI* UI::instance = nullptr;
 
+// UI constructor
+UI::UI() :
+  oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET),
+  encoder(ENC_A, ENC_B, ENC_BTN, 4)
+{}
 
-// UI objects
-Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, OLED_RESET);
-ClickEncoder encoder(ENC_A, ENC_B, ENC_BTN, 4);
-Ticker encoderTicker;
-
-
-/* === Encoder ISR ==== */
-void encoderService() {
-  encoder.service();
+void UI::begin() {
+  if (!oled.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+    Serial.println("SSD1306 allocation failed");
+    while (true);
+  }
+  oled.clearDisplay();
+  buildMenu();
+  instance = this;
+  encoderTicker.attach_ms(1, UI::encoderServiceStatic);
 }
 
+/* === Encoder ISR ==== */
+void UI::encoderServiceStatic() {
+  if(UI::instance) UI::instance->encoder.service();
+}
 
 /* ==== Callbacks ========= */
 void motorOnOff(MenuItem*) {
@@ -33,6 +43,14 @@ void motorOnOff(MenuItem*) {
      Serial.println("Motor On");
   }
 }
+
+// For setting the motorRPM values (motor class controls, UI class just reports and requests changes)
+void UI::configureRPM(float value, float minVal, float maxVal) {
+    menuRPM.floatValue = value;
+    menuRPM.minFloatVal = minVal;
+    menuRPM.maxFloatVal = maxVal;
+}
+
 
 void scrollOnOff(MenuItem*) {
   if(scrollOnOffFlag == 1) {
@@ -54,58 +72,20 @@ void demoOnOff(MenuItem*) {
   }
 }
 
-/* ===================== Menu Declarations ===================== */
-MenuItem menuMain;
-MenuItem menuSettings;
-MenuItem menuBrightness;
-MenuItem menuDisplay;
-MenuItem menuRPM;
-MenuItem menuMotorOnOff;
-MenuItem menuScrollOnOff;
-MenuItem menuDemoOnOff;
-
-
 /* ===================== Menu Construction ===================== */
-MenuItem* settingsChildren[] = {
-  &menuBrightness,
-  &menuRPM
-};
-
-MenuItem* mainChildren[] = {
-  &menuMotorOnOff,
-  &menuScrollOnOff,
-  &menuDisplay,
-  &menuDemoOnOff,
-  &menuSettings
-};
 
 MenuItem* currentMenu;
 
-void buildMenu() {
+void UI::buildMenu() {
 
-  menuMain = {
-    "Main Menu",
-    MENU_SUBMENU,
-    nullptr,
-    mainChildren,
-    5,
-    nullptr,
-    nullptr, 0, 0,
-    0, 0, 0,
-    nullptr, 0, nullptr
-  };
+  settingsChildren[0] = &menuBrightness;
+  settingsChildren[1] = &menuRPM;
 
-  menuSettings = {
-    "Settings",
-    MENU_SUBMENU,
-    &menuMain,
-    settingsChildren,
-    2,
-    nullptr,
-    nullptr, 0, 0,
-    0, 0, 0,
-    nullptr, 0, nullptr
-  };
+  mainChildren[0] = &menuMotorOnOff;
+  mainChildren[1] = &menuScrollOnOff;
+  mainChildren[2] = &menuDisplay;
+  mainChildren[3] = &menuDemoOnOff;
+  mainChildren[4] = &menuSettings;
 
   menuBrightness = {
     "Brightness",
@@ -116,21 +96,6 @@ void buildMenu() {
     &brightness, 0, 10,
     0, 0, 0,
     nullptr, 0, nullptr
-  };
-
-  for (int i=0;i<IMG_COUNT;i++) {
-    imageToDisplay[i] = imageTable[i]->name;
-  }
-
-  menuDisplay = {
-    "Display",
-    MENU_LIST,
-    &menuSettings,
-    nullptr, 0,
-    nullptr,
-    nullptr, 0, 0,
-    0, 0, 0,
-    imageToDisplay, NUMBER_OF_DISPLAY_FILES, &imageToDisplayIndex
   };
 
   menuMotorOnOff = {
@@ -177,11 +142,49 @@ void buildMenu() {
     nullptr, 0, nullptr
   };
 
+  for (int i=0;i<IMG_COUNT;i++) {
+    imageToDisplay[i] = imageTable[i]->name;
+  }
+
+  menuDisplay = {
+    "Display",
+    MENU_LIST,
+    &menuSettings,
+    nullptr, 0,
+    nullptr,
+    nullptr, 0, 0,
+    0, 0, 0,
+    imageToDisplay, NUMBER_OF_DISPLAY_FILES, &imageToDisplayIndex
+  };
+
+  menuSettings = {
+    "Settings",
+    MENU_SUBMENU,
+    &menuMain,
+    settingsChildren,
+    2,
+    nullptr,
+    nullptr, 0, 0,
+    0, 0, 0,
+    nullptr, 0, nullptr
+  };
+
+  menuMain = {
+    "Main Menu",
+    MENU_SUBMENU,
+    nullptr,
+    mainChildren,
+    5,
+    nullptr,
+    nullptr, 0, 0,
+    0, 0, 0,
+    nullptr, 0, nullptr
+  };
   currentMenu = &menuMain;
 }
 
 /* ====== Display ======== */
-void drawMenu() {
+void UI::drawMenu() {
   oled.clearDisplay();
   oled.setTextSize(1);
   oled.setTextColor(SSD1306_WHITE);
@@ -222,7 +225,7 @@ void drawMenu() {
 }
 
 /* ===================== Input Handling ===================== */
-void handleRotation(int delta) {
+void UI::handleRotation(int delta) {
   MenuItem* item = currentMenu->children[currentIndex];
 
   if (editingValue) {
@@ -262,7 +265,7 @@ void handleRotation(int delta) {
   }
 }
 
-void handleClick() {
+void UI::handleClick() {
   MenuItem* item = currentMenu->children[currentIndex];
 
   if (item->type == MENU_SUBMENU) {
@@ -277,7 +280,7 @@ void handleClick() {
   }
 }
 
-void handleDoubleClick() {
+void UI::handleDoubleClick() {
   if (editingValue) {
     editingValue = false;
     return;
@@ -290,10 +293,28 @@ void handleDoubleClick() {
 }
 
 // For blinking the edited menu item
-void updateBlink() {
+void UI::updateBlink() {
   uint32_t now = millis();
   if (now - lastBlink >= blinkInterval) {
     blinkOn = !blinkOn;
     lastBlink = now;
   }
+}
+
+void UI::update() {
+    updateBlink();
+
+    // Go check the encoder/switch for user input
+    int encoderDelta = encoder.getValue();
+    if (encoderDelta != 0) {
+      handleRotation(encoderDelta);
+    }
+
+    ClickEncoder::Button b = encoder.getButton();
+    if (b == ClickEncoder::Clicked) {
+      handleClick();
+    }
+    if (b == ClickEncoder::DoubleClicked) {
+      handleDoubleClick();
+    }
 }

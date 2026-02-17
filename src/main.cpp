@@ -103,6 +103,7 @@ TaskHandle_t graphicsTaskHandle;
 TaskHandle_t motorTaskHandle;
 
 Motor motor;
+UI ui;
 
 
 //#########################################
@@ -129,24 +130,15 @@ void setup() {
   //Set up OLED on 2nd I2C bus
   Wire1.begin(SDA_OLED, SCL_OLED, 400000); // SDA, SCL, clock
 
-  if (!oled.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
-    Serial.println("SSD1306 allocation failed");
-    while (true);
-  }
-  oled.clearDisplay();
-
-  // Set up the rotary encoder/switch
-  encoderTicker.attach_ms(1, encoderService);
-
-  // Fill the initial menu 
-  buildMenu();
+  ui.begin();
 
   // Set up pwm
   motor.begin();
-  menuRPM.floatValue = motor.getTargetRPM();
-  menuRPM.minFloatVal = motor.getMinRPM();
-  menuRPM.maxFloatVal = motor.getMaxRPM();
-
+  ui.configureRPM(
+    motor.getTargetRPM(),
+    motor.getMinRPM(),
+    motor.getMaxRPM()
+  );
 
   // Uses default i2c interface to AS5600 to read angle
   //if (!as5600.begin()) {
@@ -413,23 +405,9 @@ void uiTask(void* parameter) {
 
   for (;;) {
 
-    // Go check the encoder/switch for user input
-    int encoderDelta = encoder.getValue();
-    if (encoderDelta != 0) {
-      handleRotation(encoderDelta);
-    }
-
-    ClickEncoder::Button b = encoder.getButton();
-    if (b == ClickEncoder::Clicked) {
-      handleClick();
-    }
-    if (b == ClickEncoder::DoubleClicked) {
-      handleDoubleClick();
-    }
-
-    // Update the OLED
-    updateBlink();
-    drawMenu();
+    // Get any user input and update the OLED
+    ui.update();
+    ui.drawMenu();
 
     #ifdef STACK_CHECK 
     UBaseType_t watermark = uxTaskGetStackHighWaterMark(nullptr);
