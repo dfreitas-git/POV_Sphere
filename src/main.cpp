@@ -436,17 +436,6 @@ void loop() {
   core_1_omega_ff = omega_ff;      // local copies used by core-1.
   core_1_omega_trim = omega_trim;     
 
-  // When core-0 filles the backBuffer, swap it into the frontBuffer.  The renderer always
-  // renders to the sphere from the frontBuffer.
-  if(backBufferFilled) {
-
-    // Point the frontbuffer to the new data
-    swapBuffersAtomic();
-
-   // Reset flag so core-0 can start filling the back buffer again
-   backBufferFilled = false;
-  }
-
   // Now compute the angle_q for the current time (i.e. what the Sphere angle currently is)
   motor.computeCurrentAngle();   
 
@@ -462,12 +451,21 @@ void loop() {
     // Check to see how many columns the shaft advanced.  Should usually be 1, but if there was some CPU delay the shaft may have advanced further
     uint32_t columnsAdvanced = (triggerPoint * COLUMNS / AS5600_COUNTS) + 1;
 
+    uint16_t prevColumn = columnIndex;
     columnIndex = (columnIndex + columnsAdvanced) % COLUMNS;
     nextColumnAngle = (columnIndex + 1) * (AS5600_COUNTS / COLUMNS);
 
     // Take care of angle wrapping from 360->0
     if (nextColumnAngle >= AS5600_COUNTS) {
       nextColumnAngle -= AS5600_COUNTS;
+    }
+
+    // When core-0 filles the backBuffer, swap it into the frontBuffer once we get 
+    // back to column-0.  The renderer always renders to the sphere from the frontBuffer.
+    bool wrapped = (columnIndex < prevColumn);
+    if(wrapped && backBufferFilled) {
+      swapBuffersAtomic();
+     backBufferFilled = false;
     }
   
     // Go update the strips. 
