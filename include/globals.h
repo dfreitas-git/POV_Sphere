@@ -31,7 +31,6 @@ extern int32_t angle_q;                // current predicted angle (Q0, 0–4095)
 extern volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
 extern int32_t core_1_omega_ff;        // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
 extern uint16_t core_1_omega_trim;     // local copy used by core-1.
-extern uint32_t lastAngleTime;         // Used by core-1 to calculate dt between angle calculations
 extern long phase_error;               // Current error between measured angle from core-0 and computed angle on core-1
 extern volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
 
@@ -45,15 +44,8 @@ extern float motorRPM;
 extern volatile bool motorOnOffFlag;   // Turn the mhtor on/off
 
 /* ==== Global Menu State ===== */
-extern uint8_t currentIndex;
-extern bool editingValue;
 extern uint8_t imageToDisplayIndex;
 extern uint8_t previousImageToDisplayIndex;
-
-/* Blink control (for blinking the menu cursor)*/
-extern bool blinkOn;
-extern uint32_t lastBlink;
-extern const uint32_t blinkInterval; 
 
 // Images to display on the Sphere
 extern const uint8_t NUMBER_OF_DISPLAY_FILES;

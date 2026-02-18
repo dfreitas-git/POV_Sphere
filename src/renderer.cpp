@@ -51,14 +51,7 @@ bool Renderer::isBackBufferFilled() {
 
 // clear the specified framebuffer
 void Renderer::clearFrameBuffer(uint8_t* frameBuffer) {
-  for (int col = 0; col < COLUMNS; col++) {
-    for (int row = 0; row < ROWS; row++) {
-      int idx = (row * COLUMNS + col) * 3;
-      frameBuffer[idx]     = 0;
-      frameBuffer[idx + 1] = 0;
-      frameBuffer[idx + 2] = 0;
-    }
-  }
+  memset(frameBuffer, 0, TOTAL_COLUMNS_RGB_BYTES);
 }
 
 //##################################################################

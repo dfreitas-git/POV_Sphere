@@ -21,7 +21,6 @@ volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA
 volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
 int32_t core_1_omega_ff;        // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
 uint16_t core_1_omega_trim;     // local copy used by core-1.
-uint32_t lastAngleTime;         // Used by core-1 to calculate dt between angle calculations
 long phase_error;               // Current error between measured angle from core-0 and computed angle on core-1
 
 // Core-1 column position vars (i.e.  What framebuffer column we're displaying)
@@ -32,20 +31,12 @@ uint16_t lastAngle = 0;
 float motorRPM = 0.0f;              // Current computed RPM
 volatile bool motorOnOffFlag = 0;   // Turn the mhtor on/off
 
-
 /* ==== Global Menu State ===== */
-uint8_t currentIndex = 0;
-bool editingValue = false;
 uint8_t imageToDisplayIndex = 0;
 uint8_t previousImageToDisplayIndex = 0;
 
 // Demo mode - When true, rotate through all the display animations
 bool demoAll = false;
-
-/* Blink control */
-bool blinkOn = true;
-uint32_t lastBlink = 0;
-const uint32_t blinkInterval = 400;  // ms
 
 // Images to display on the Sphere
 const uint8_t NUMBER_OF_DISPLAY_FILES = IMG_COUNT;

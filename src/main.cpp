@@ -158,9 +158,11 @@ void setup() {
 
   // Initialize SPI and create and clear framebuffers
   renderer.init();
-  memset(renderer.getBackBuffer(), 0, TOTAL_COLUMNS_RGB_BYTES);
+  renderer.clearFrameBuffer(renderer.getBackBuffer());
+  renderer.markBackBufferFilled();
   renderer.swapBuffers();
-  memset(renderer.getBackBuffer(), 0, TOTAL_COLUMNS_RGB_BYTES);
+  renderer.clearFrameBuffer(renderer.getBackBuffer());
+  renderer.markBackBufferFilled();
 
   // Small stabilization time
   delay(10);
@@ -173,9 +175,6 @@ void setup() {
   // For the core-0 angle measurement update
   lastMeasuredTime = millis();  //Used by core-0
   lastScrollTime = lastMeasuredTime;  // Used for framebuffer scrolling when rotating the image around the Sphere
-
-  // Used by core-1 when calculating it's PLL angle
-  lastAngleTime = micros(); 
 
   // Initialize the column number based on where the shaft is sitting
   // Do multiply before divide to maintain precision
@@ -360,9 +359,11 @@ void graphicsTask(void* parameter) {
       if(previousImageToDisplayIndex != imageToDisplayIndex) {
 
         // need to flush the framebuffers if we are starting to display a new image 
-        memset(renderer.getBackBuffer(), 0, TOTAL_COLUMNS_RGB_BYTES);
+        renderer.clearFrameBuffer(renderer.getBackBuffer());
+        renderer.markBackBufferFilled();
         renderer.swapBuffers();
-        memset(renderer.getBackBuffer(), 0, TOTAL_COLUMNS_RGB_BYTES);
+        renderer.clearFrameBuffer(renderer.getBackBuffer());
+        renderer.markBackBufferFilled();
         if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
           initShootingStars();
         } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
