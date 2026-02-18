@@ -44,12 +44,6 @@ extern uint16_t lastAngle;
 extern float motorRPM;
 extern volatile bool motorOnOffFlag;   // Turn the mhtor on/off
 
-// Double buffers allocated on heap (to make swapping trivial)
-extern uint8_t *frontBuffer;   // Used by core-1.  Displayed buffer (contains COLUMNS columns sequentially)
-extern uint8_t *backBuffer;   // Written by core-0 (next frame)
-extern volatile bool backBufferFilled;  // Set to true when a valid image has been loaded into it.
-extern volatile bool dmaBusy; // indicates a DMA transfer is in flight
-
 /* ==== Global Menu State ===== */
 extern uint8_t currentIndex;
 extern bool editingValue;
@@ -133,9 +127,6 @@ constexpr float PWM_MAX = 255.0f;
 // derivative low-pass (seconds). 0.01..0.2 typical
 constexpr float DERIV_FILTER_TAU = 0.05f; 
 
-//########################
-// Framebuffer Variables
-//########################
 
 // ###########################################################
 //   UI core-0 OLED/rotary-encoder/switch definitions

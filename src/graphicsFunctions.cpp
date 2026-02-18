@@ -51,19 +51,6 @@ float clamp(float val, float minVal, float maxVal) {
   }
 }
 
-// clear the specified framebuffer
-void clearFrameBuffer(uint8_t* frameBuffer) {
-  for (int col = 0; col < COLUMNS; col++) {
-    for (int row = 0; row < ROWS; row++) {
-      int idx = (row * COLUMNS + col) * 3;
-      frameBuffer[idx]     = 0;
-      frameBuffer[idx + 1] = 0;
-      frameBuffer[idx + 2] = 0;
-    }
-  }
-}
-
-
 //###################################################################
 // Fill the backbuffer in preperation for the next displayed frame
 // Assumes a 120x48 image imported from Gimp in rgb565 format (two
@@ -74,6 +61,7 @@ void fillBB_image() {
   // Reading an image created by Gimp (loaded from images.h)
   // and expanding/writing the bytes into the framebuffer.  framebuffer always
   // is loaded with rgb888  (one byte per r, g, b) per pixel.
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (unsigned col = 0; col < imageTable[imageToDisplayIndex]->width; col++) {
 
     // Start at row 0, this column in the Gimp pixel array
@@ -98,9 +86,9 @@ void fillBB_image() {
       // Now store the rgb (three bytes per row) data into the backbuffer.  In the rendering (by core-1), 
       // we will add the start bytes, brightness, gamma, and stop bytes before DMA to the dotStars.
       // Reverse the rows since Gimp stores row 0 at the top and our framebuffer starts with 0 at the bottom.
-      backBuffer[((ROWS-1-row) * COLUMNS * 3) + (col * 3)] = r8;
-      backBuffer[((ROWS-1-row) * COLUMNS * 3) + (col * 3 + 1)] = g8;
-      backBuffer[((ROWS-1-row) * COLUMNS * 3) + (col * 3 + 2)] = b8;
+      bbuf[((ROWS-1-row) * COLUMNS * 3) + (col * 3)] = r8;
+      bbuf[((ROWS-1-row) * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      bbuf[((ROWS-1-row) * COLUMNS * 3) + (col * 3 + 2)] = b8;
 
       // Advance to next row, same column
       p += imageTable[imageToDisplayIndex]->width * 2;
@@ -153,11 +141,12 @@ void fillBB_fade() {
   b8 = b8Base * bright;
 
   // Now write the pixels into the framebuffer
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (uint8_t col = 0; col < COLUMNS; col++) {
     for (uint8_t row = 0; row < ROWS; row++) {
-      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+      bbuf[(row * COLUMNS * 3) + (col * 3)]     = r8;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
     }
   }
 }
@@ -211,6 +200,7 @@ void fillBB_paint() {
 
   // For each row, figure out which color band it lays in
   // Start from the top row so it looks like the paint is flowing down
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int row = 0; row < ROWS; row++) {
     for (int col = 0; col < 120; col++) {
 
@@ -218,9 +208,9 @@ void fillBB_paint() {
       int curHead = frameBufferHeadPtr + waveLUT[col % COLUMNS/2];
       RGB color = (row <= curHead) ? fgColor : bgColor;
 
-      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
+      bbuf[(row * COLUMNS * 3) + (col * 3)]     = color.r;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
     }
   }
 }
@@ -241,6 +231,7 @@ void fillBB_hBands() {
   const uint8_t b[4] = {0,0,255,0};
 
   // for each row, figure out which color band it lays in
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int row = 0; row < ROWS; row++) {
     int d = (head - row + ROWS) % ROWS;   // distance behind the head this current row is
     int colorIndex;
@@ -255,9 +246,9 @@ void fillBB_hBands() {
 
     // Now write that color all the way around the Sphere
     for (int col = 0; col < 120; col++) {
-        backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r[colorIndex];
-        backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g[colorIndex];
-        backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b[colorIndex];
+        bbuf[(row * COLUMNS * 3) + (col * 3)]     = r[colorIndex];
+        bbuf[(row * COLUMNS * 3) + (col * 3 + 1)] = g[colorIndex];
+        bbuf[(row * COLUMNS * 3) + (col * 3 + 2)] = b[colorIndex];
     }
   }
 }
@@ -295,6 +286,7 @@ void fillBB_hFade() {
     float phi = ((float(row) / float(ROWS)) * PI) - PI/2.0;
     rowSin[row] = sin(phi * 8 + animatePhase);
   }
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int col = 0; col < COLUMNS; col++) {
     for (int row = 0; row < ROWS; row++) {
 
@@ -307,9 +299,9 @@ void fillBB_hFade() {
         case 1: g8 = bright; break;
         case 2: b8 = bright; break;
       }
-      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+      bbuf[(row * COLUMNS * 3) + (col * 3)]     = r8;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
     }
   }
 }
@@ -341,6 +333,7 @@ void fillBB_vFade() {
   int colorBright = (1 - cos(phase)) * 0.5 * 255;
 
   // Now map the brightness based on the position
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int col = 0; col < COLUMNS; col++) {
     float theta = (col / float(COLUMNS)) * 2*PI;
     for (int row = 0; row < ROWS; row++) {
@@ -357,9 +350,9 @@ void fillBB_vFade() {
         case 1: g8 = bright; break;
         case 2: b8 = bright; break;
       }
-      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = r8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
+      bbuf[(row * COLUMNS * 3) + (col * 3)]     = r8;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 1)] = g8;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 2)] = b8;
     }
   }
 }
@@ -404,6 +397,7 @@ void fillBB_checker() {
   }
 
   // Now map the color based on the position
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int col = 0; col < COLUMNS; col++) {
     int d = (head - col + COLUMNS) % COLUMNS;   // distance behind the head this current col is
     int fgIndex, bgIndex;
@@ -426,9 +420,9 @@ void fillBB_checker() {
       } else { 
         color = contrastColors[bgIndex];
       }
-      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
-      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
+      bbuf[(row * COLUMNS * 3) + (col * 3)]     = color.r;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
     }
   }
 }
@@ -1164,12 +1158,13 @@ void fillBB_pinecrest() {
 //###############################################################################
 //     Helper functions 
 void fadeFramebuffer(uint8_t decay) {
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int col = 0; col < COLUMNS; col++) {
     for (int row = 0; row < ROWS; row++) {
       for (int c = 0; c < 3; c++) {
         int idx = ((row * COLUMNS + col) * 3) + c;
-        uint8_t v = backBuffer[idx];
-        backBuffer[idx] = (v > decay) ? (v - decay) : 0;
+        uint8_t v = bbuf[idx];
+        bbuf[idx] = (v > decay) ? (v - decay) : 0;
       }
     }
   }
@@ -1177,10 +1172,11 @@ void fadeFramebuffer(uint8_t decay) {
 
 // Write the leading pixel for the shootingStar
 void writeHead(int col, int row, RGB color) {
+  uint8_t* bbuf = renderer.getBackBuffer();
   int idx = (row * COLUMNS + col) * 3;
-  backBuffer[idx]     = color.r;
-  backBuffer[idx + 1] = color.g;
-  backBuffer[idx + 2] = color.b;
+  bbuf[idx]     = color.r;
+  bbuf[idx + 1] = color.g;
+  bbuf[idx + 2] = color.b;
 }
 
 // Set up parameters for multiple shootingStars
@@ -1204,6 +1200,7 @@ void fillBB_shootingStar() {
   // pixel until we fade to black
   fadeFramebuffer(10);   // larger number fades quicker
 
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int i = 0; i < NUM_STARS; i++) {
 
     Star *s = &stars[i];
@@ -1239,9 +1236,9 @@ void fillBB_shootingStar() {
     int row = (int)s->y;
 
     int idx = (row * COLUMNS + col) * 3;
-    backBuffer[idx]     = s->r;
-    backBuffer[idx + 1] = s->g;
-    backBuffer[idx + 2] = s->b;
+    bbuf[idx]     = s->r;
+    bbuf[idx + 1] = s->g;
+    bbuf[idx + 2] = s->b;
   }
 }
 
@@ -1380,13 +1377,14 @@ void fillBB_fireworks() {
 // fading out
 //##########################################
 void shiftDown() {
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int row = 0; row < ROWS - 1; row++) {
     for (int col = 0; col < COLUMNS; col++) {
       int dst = (row * COLUMNS + col) * 3;
       int src = ((row + 1) * COLUMNS + col) * 3;
-      backBuffer[dst]     = backBuffer[src];
-      backBuffer[dst + 1] = backBuffer[src + 1];
-      backBuffer[dst + 2] = backBuffer[src + 2];
+      bbuf[dst]     = bbuf[src];
+      bbuf[dst + 1] = bbuf[src + 1];
+      bbuf[dst + 2] = bbuf[src + 2];
     }
   }
 
@@ -1394,9 +1392,9 @@ void shiftDown() {
   int topRow = ROWS - 1;
   for (int col = 0; col < COLUMNS; col++) {
     int idx = (topRow * COLUMNS + col) * 3;
-    backBuffer[idx]     = 0;
-    backBuffer[idx + 1] = 0;
-    backBuffer[idx + 2] = 0;
+    bbuf[idx]     = 0;
+    bbuf[idx + 1] = 0;
+    bbuf[idx + 2] = 0;
   }
 }
 
@@ -1408,21 +1406,17 @@ void fillBB_sparkShower() {
 
   int topRow = ROWS - 1;
 
+  uint8_t* bbuf = renderer.getBackBuffer();
   for (int col = 0; col < COLUMNS; col++) {
 
     // emission probability per column
     if (random(0, 1000) < 80) {
-
       int idx = (topRow * COLUMNS + col) * 3;
-
       uint8_t v = random(150, 255);
 
-      //backBuffer[idx]     = v;
-      //backBuffer[idx + 1] = v;
-      //backBuffer[idx + 2] = v;
-      backBuffer[idx]     = random(255);
-      backBuffer[idx + 1] = random(255);
-      backBuffer[idx + 2] = random(255);
+      bbuf[idx]     = random(255);
+      bbuf[idx + 1] = random(255);
+      bbuf[idx + 2] = random(255);
     }
   }
 }
@@ -1975,22 +1969,15 @@ void drawTriangle(const Vec2& v1, const Vec2& v2, const Vec2& v3, const struct R
 //  Write pixel to backBuffer at a given location
 //  We use three bytes per pixel for RGB
 //##################################################
-//void writePixel(int col, int row, const struct RGB& color) {
-//  // Be sure they are in-bounds and not negative
-//  if(((col >= 0) && (col < COLUMNS)) && ((row >= 0) && (row < ROWS))) {
-//      backBuffer[(row * COLUMNS * 3) + (col * 3)]     = color.r;
-//      backBuffer[(row * COLUMNS * 3) + (col * 3 + 1)] = color.g;
-//      backBuffer[(row * COLUMNS * 3) + (col * 3 + 2)] = color.b;
-//  }
-//}
 
 void writePixel(int col, int row, const struct RGB& color) {
   // Be sure they are in-bounds and not negative
+  uint8_t* bbuf = renderer.getBackBuffer();
   if ((unsigned)col < COLUMNS && (unsigned)row < ROWS) {
       int idx = (row * COLUMNS + col) * 3;
-      backBuffer[idx]     = color.r;
-      backBuffer[idx + 1] = color.g;
-      backBuffer[idx + 2] = color.b;
+      bbuf[idx]     = color.r;
+      bbuf[idx + 1] = color.g;
+      bbuf[idx + 2] = color.b;
   } else {
       outOfBoundsPixelCount++;
       Serial.printf("writePixel bounds errors: %d\n",outOfBoundsPixelCount);

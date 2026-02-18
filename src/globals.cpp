@@ -33,17 +33,6 @@ float motorRPM = 0.0f;              // Current computed RPM
 volatile bool motorOnOffFlag = 0;   // Turn the mhtor on/off
 
 
-//########################
-// Framebuffer Variables
-//########################
-
-// Double buffers allocated on heap (to make swapping trivial)
-uint8_t *frontBuffer = nullptr;   // Used by core-1.  Displayed buffer (contains COLUMNS columns sequentially)
-uint8_t *backBuffer  = nullptr;   // Written by core-0 (next frame)
-volatile bool backBufferFilled = false;  // Set to true when a valid image has been loaded into it.
-volatile bool dmaBusy = false; // indicates a DMA transfer is in flight
-
-
 /* ==== Global Menu State ===== */
 uint8_t currentIndex = 0;
 bool editingValue = false;

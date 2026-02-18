@@ -1,52 +1,113 @@
 
 #include <renderer.h>
 
-// SPI and DMA objects
-spi_device_handle_t spi = nullptr;
 
+//#############################
+// Initialize the framebuffers
+//#############################
+void Renderer::init() {
+    initSpi();
+    ensureBuffersAllocated();
+}
 
-// #########################################
-// DMA the new column data to the four rings
-// #########################################
-void updateColumnLEDs(uint16_t columnIndex) {
+//###########################################################
+// Status about if we are in the middle of a DMA transaction
+//###########################################################
+bool Renderer::isBusy() const {
+    return dmaBusy;
+}
 
-  uint8_t dotStarColumn[COLUMN_PAYLOAD];  // Use to hold transformed column data (rgb565->rgb888, gamma, brightness)
-  uint8_t *dst = dotStarColumn;
+//#################################################
+// Swap the backbuffer and frontbuffers atomically
+//#################################################
+void Renderer::swapBuffers() {
+    if(!backBufferFilled) return;
 
-  // Need to reverse the column index since the sphere is rotating clockwise which means it's 
-  // painting right to left from the framebuffer (i.e. highest index to lowest)
+    noInterrupts();
+    uint8_t *tmp = frontBuffer;
+    frontBuffer = backBuffer;
+    backBuffer = tmp;
+    interrupts();
 
-  int reversedColumn = COLUMNS - 1 - columnIndex;
+    backBufferFilled = false;
+}
 
-  // Start DMA for current column.  For each column, stream out the four rings led data
-  for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
-    uint8_t baseCol = ringIndex * COLS_PER_RING;
-    uint8_t *colPtr;
-
-    colPtr = frontBuffer + (((baseCol + reversedColumn) % COLUMNS) * 3);  // modulo 120 so we wrap when not starting at col-0.  Multiply by 3-bytes to step across rgb fields
-
-    // Transform column data into dotStar format.  Convert to rgb888, apply brightness and gamma correction
-    buildColumn(dst,colPtr);
-
-    // Turn on the selected colunm bus buffer
-    digitalWrite(ringEnable[ringIndex], LOW); // enable
-    delayMicroseconds(1); // settle
-
-    startColumnDma(dst);
-
-    // Wait for the DMA to finish this column before sending the next one.
-    // This is a simple approach; can be optimized to queue multiple transfers.
-    while (dmaBusy) {
-      pollDmaComplete();
+//##############################################
+// Once graphics is done filling the backbuffer 
+//##############################################
+void Renderer::markBackBufferFilled() {
+    backBufferFilled = true;
+}
+//#############################
+// Test if backbuffer is filed 
+//#############################
+bool Renderer::isBackBufferFilled() {
+    if(backBufferFilled) {
+       return(true);
+    } else {
+       return(false);
     }
-    digitalWrite(ringEnable[ringIndex], HIGH); // disaable
+}
+
+// clear the specified framebuffer
+void Renderer::clearFrameBuffer(uint8_t* frameBuffer) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
+      int idx = (row * COLUMNS + col) * 3;
+      frameBuffer[idx]     = 0;
+      frameBuffer[idx + 1] = 0;
+      frameBuffer[idx + 2] = 0;
+    }
   }
 }
+
+//##################################################################
+// Return a pointer to the backbuffer for graphics functions to use
+//##################################################################
+uint8_t* Renderer::getBackBuffer() {
+    return backBuffer;
+}
+
+//###########################################
+// DMA the new column data to the four rings
+//###########################################
+void Renderer::sendColumn(uint16_t columnIndex) {
+
+    if(this->dmaBusy) return;
+
+    uint8_t dotStarColumn[COLUMN_PAYLOAD];
+    uint8_t *dst = dotStarColumn;
+
+    int reversedColumn = COLUMNS - 1 - columnIndex;
+
+    for(int ringIndex = 0; ringIndex < 4; ringIndex++) {
+
+        uint8_t baseCol = ringIndex * COLS_PER_RING;
+
+        uint8_t *colPtr =
+            frontBuffer +
+            (((baseCol + reversedColumn) % COLUMNS) * 3);
+
+        buildColumn(dst, colPtr);
+
+        digitalWrite(ringEnable[ringIndex], LOW);
+        delayMicroseconds(1);
+
+        startColumnDma(dst);
+
+        while (this->dmaBusy) {
+            pollDmaComplete();
+        }
+
+        digitalWrite(ringEnable[ringIndex], HIGH);
+    }
+}
+
 
 //#################################################################################
 // Allocate contiguous memory for the entire frame (COLUMNS * COLUMN_PAYLOAD)
 //#################################################################################
-void ensureBuffersAllocated() {
+void Renderer::ensureBuffersAllocated() {
   if (frontBuffer == nullptr) {
     frontBuffer = (uint8_t*)heap_caps_malloc(TOTAL_COLUMNS_RGB_BYTES, MALLOC_CAP_8BIT);
   }
@@ -62,26 +123,15 @@ void ensureBuffersAllocated() {
 //########################################################
 // Free up framebuffer memory
 //########################################################
-void freeBuffers() {
+void Renderer::freeBuffers() {
   if (frontBuffer) { free(frontBuffer); frontBuffer = nullptr; }
   if (backBuffer)  { free(backBuffer);  backBuffer  = nullptr; }
-}
-
-//########################################################
-// Atomic swap of front/back pointers. Must be fast.
-//########################################################
-void swapBuffersAtomic() {
-  noInterrupts();
-  uint8_t *tmp = frontBuffer;
-  frontBuffer = backBuffer;
-  backBuffer = tmp;
-  interrupts();
 }
 
 //############################################################
 // Build one dotStar dotStar column (start+48*4+end) into dst
 //############################################################
-void buildColumn(uint8_t *dst, uint8_t *colPtr) {
+void Renderer::buildColumn(uint8_t *dst, uint8_t *colPtr) {
   int idx = 0;
 
   // Start frame (32 bits of zero)
@@ -136,7 +186,7 @@ void buildColumn(uint8_t *dst, uint8_t *colPtr) {
 //###########################
 //  SPI DMA setup 
 //###########################
-void initSpi() {
+void Renderer::initSpi() {
   // configure SPI bus
   spi_bus_config_t buscfg = {};
   buscfg.mosi_io_num = PIN_SPI_MOSI;
@@ -172,8 +222,8 @@ void initSpi() {
 //###########################################################
 // Start a DMA transfer of exactly one column (non-blocking).
 //###########################################################
-void startColumnDma(uint8_t *columnData) {
-  if (!spi) return;
+void Renderer::startColumnDma(uint8_t *columnData) {
+  if (!this->spi) return;
 
   // Create a transaction on the stack and queue it
   spi_transaction_t *t = (spi_transaction_t*)heap_caps_malloc(sizeof(spi_transaction_t), MALLOC_CAP_DMA);
@@ -188,13 +238,13 @@ void startColumnDma(uint8_t *columnData) {
   t->user = nullptr;
 
   // Mark that DMA is active
-  dmaBusy = true;
+  this->dmaBusy = true;
 
   // Queue transaction (non-blocking)
   esp_err_t ret = spi_device_queue_trans(spi, t, portMAX_DELAY);
   if (ret != ESP_OK) {
     Serial.printf("spi_device_queue_trans error %d\n", ret);
-    dmaBusy = false;
+    this->dmaBusy = false;
     free(t);
   }
 }
@@ -202,8 +252,8 @@ void startColumnDma(uint8_t *columnData) {
 //########################################################
 // Poll for DMA completion and free transaction
 //########################################################
-void pollDmaComplete() {
-  if (!dmaBusy) return;
+void Renderer::pollDmaComplete() {
+  if (!this->dmaBusy) return;
 
   spi_transaction_t *rtrans;
   esp_err_t ret = spi_device_get_trans_result(spi, &rtrans, 0); // timeout 0 => non-blocking
@@ -212,7 +262,7 @@ void pollDmaComplete() {
     // Completed transaction
     // Free the transaction memory we allocated in startColumnDma
     heap_caps_free(rtrans);
-    dmaBusy = false;
+    this->dmaBusy = false;
   }
   // if ret == ESP_ERR_TIMEOUT -> not finished yet; do nothing
 }

@@ -104,7 +104,7 @@ TaskHandle_t motorTaskHandle;
 
 Motor motor;
 UI ui;
-
+Renderer renderer;
 
 //#########################################
 // Main Setup Code
@@ -129,7 +129,6 @@ void setup() {
 
   //Set up OLED on 2nd I2C bus
   Wire1.begin(SDA_OLED, SCL_OLED, 400000); // SDA, SCL, clock
-
   ui.begin();
 
   // Set up pwm
@@ -150,11 +149,6 @@ void setup() {
   }
   Wire.setClock(800000);  // Speed up I2c to AS5600
 
-  // Allocate frame buffers
-  ensureBuffersAllocated();
-  clearFrameBuffer(backBuffer);
-  clearFrameBuffer(frontBuffer);
-
   // Need to initialize the shootingStar of fireworks seeds
   if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
     initShootingStars();
@@ -162,8 +156,11 @@ void setup() {
     initRocket();
   }
 
-  // Initialize SPI with DMA
-  initSpi();
+  // Initialize SPI and create and clear framebuffers
+  renderer.init();
+  memset(renderer.getBackBuffer(), 0, TOTAL_COLUMNS_RGB_BYTES);
+  renderer.swapBuffers();
+  memset(renderer.getBackBuffer(), 0, TOTAL_COLUMNS_RGB_BYTES);
 
   // Small stabilization time
   delay(10);
@@ -350,7 +347,7 @@ void graphicsTask(void* parameter) {
     fiveBitBright = map(brightness,0,10,0,31);
 
     // Load the backBuffer with the next frame to display
-    if (!backBufferFilled) {
+    if (!renderer.isBackBufferFilled()) {
       if(demoAll) {
         if(millis() - lastAnimateTime > DEMO_DISPLAY_TIME) {
           imageToDisplayIndex++;
@@ -361,9 +358,11 @@ void graphicsTask(void* parameter) {
         }
       }
       if(previousImageToDisplayIndex != imageToDisplayIndex) {
+
         // need to flush the framebuffers if we are starting to display a new image 
-        clearFrameBuffer(backBuffer);
-        clearFrameBuffer(frontBuffer);
+        memset(renderer.getBackBuffer(), 0, TOTAL_COLUMNS_RGB_BYTES);
+        renderer.swapBuffers();
+        memset(renderer.getBackBuffer(), 0, TOTAL_COLUMNS_RGB_BYTES);
         if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
           initShootingStars();
         } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
@@ -373,7 +372,7 @@ void graphicsTask(void* parameter) {
       }
 
       imageTable[imageToDisplayIndex]->functionPtr();
-      backBufferFilled = true;
+      renderer.markBackBufferFilled();
     }
 
     #ifdef STACK_CHECK 
@@ -451,7 +450,6 @@ void loop() {
     // Check to see how many columns the shaft advanced.  Should usually be 1, but if there was some CPU delay the shaft may have advanced further
     uint32_t columnsAdvanced = (triggerPoint * COLUMNS / AS5600_COUNTS) + 1;
 
-    uint16_t prevColumn = columnIndex;
     columnIndex = (columnIndex + columnsAdvanced) % COLUMNS;
     nextColumnAngle = (columnIndex + 1) * (AS5600_COUNTS / COLUMNS);
 
@@ -459,18 +457,15 @@ void loop() {
     if (nextColumnAngle >= AS5600_COUNTS) {
       nextColumnAngle -= AS5600_COUNTS;
     }
-
-    // When core-0 filles the backBuffer, swap it into the frontBuffer once we get 
-    // back to column-0.  The renderer always renders to the sphere from the frontBuffer.
-    bool wrapped = (columnIndex < prevColumn);
-    if(wrapped && backBufferFilled) {
-      swapBuffersAtomic();
-     backBufferFilled = false;
-    }
   
-    // Go update the strips. 
-    if(!dmaBusy) {
-      updateColumnLEDs((columnIndex + framebufferOffset) % COLUMNS);
+    // Go update the four dotStar columns. 
+    if(!renderer.isBusy()) {
+      renderer.sendColumn((columnIndex + framebufferOffset) % COLUMNS);
+
+      // Once we update the column, go chedk if a new frame is ready.  Swap between columns
+      if(renderer.isBackBufferFilled()) {
+        renderer.swapBuffers();
+      }
     }
   }
 }

@@ -6,6 +6,9 @@
 #include <images.h>
 #include <globals.h>
 #include <math.h>
+#include <renderer.h>
+
+extern Renderer renderer;
 
 //#################################
 // Color definitions
@@ -191,7 +194,6 @@ static uint32_t outOfBoundsPixelCount = 0;
 //#################################
 float lerp(float a, float b, float f);
 float clamp(float val, float minVal, float maxVal);
-void clearFrameBuffer(uint8_t* frameBuffer);
 void initShootingStars();
 void initSparkShower();
 void initRocket();
