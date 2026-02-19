@@ -60,6 +60,7 @@
 #include <globals.h>
 #include <graphicsPrimitives.h>
 #include <graphicsComposites.h>
+#include <graphicsAssets.h>
 #include <graphicsFunctions.h>
 #include <renderer.h>
 #include <Adafruit_SSD1306.h>
@@ -109,6 +110,7 @@ UI ui;
 Renderer renderer;
 GraphicsPrimitives gPrim;
 GraphicsComposites gComp;
+GraphicsAssets gAsset;
 
 
 //#########################################
