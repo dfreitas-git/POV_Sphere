@@ -54,25 +54,26 @@ typedef struct {
 } Image;
 
 // prototypes for the rendering functions
-extern void fillBB_image(); 
-extern void fillBB_fade();
-extern void fillBB_hFade();
-extern void fillBB_vFade();
-extern void fillBB_paint();
-extern void fillBB_hBands();
-extern void fillBB_checker();
-extern void fillBB_pacman();
-extern void fillBB_pacman1();
-extern void fillBB_spiralR();
-extern void fillBB_spiralL();
-extern void fillBB_spiralD();
-extern void fillBB_diamond();
-extern void fillBB_flower();
-extern void fillBB_eyeball();
-extern void fillBB_pinecrest();
-extern void fillBB_shootingStar();
-extern void fillBB_sparkShower();
-extern void fillBB_fireworks();
+void fillBB_image(); 
+void fillBB_fade();
+void fillBB_hFade();
+void fillBB_vFade();
+void fillBB_paint();
+void fillBB_hBands();
+void fillBB_checker();
+void fillBB_pacman();
+void fillBB_pacman1();
+void fillBB_spiralR();
+void fillBB_spiralL();
+void fillBB_spiralD();
+void fillBB_diamond();
+void fillBB_flower();
+void fillBB_eyeball();
+void fillBB_pinecrest();
+void fillBB_shootingStar();
+void fillBB_sparkShower();
+void fillBB_fireworks();
+
 extern const Image *imageTable[IMG_COUNT];
 
 // Test dot.  Just one pixel so we can hoop up a scope and read the SPI bus data

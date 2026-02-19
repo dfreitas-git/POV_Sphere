@@ -58,6 +58,8 @@
 // My local modules
 #include <config.h>
 #include <globals.h>
+#include <graphicsPrimitives.h>
+#include <graphicsComposites.h>
 #include <graphicsFunctions.h>
 #include <renderer.h>
 #include <Adafruit_SSD1306.h>
@@ -105,6 +107,9 @@ TaskHandle_t motorTaskHandle;
 Motor motor;
 UI ui;
 Renderer renderer;
+GraphicsPrimitives gPrim;
+GraphicsComposites gComp;
+
 
 //#########################################
 // Main Setup Code
