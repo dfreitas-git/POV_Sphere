@@ -15,6 +15,7 @@
 #include <driver/gpio.h>
 #include <soc/gpio_reg.h>
 #include <soc/gpio_struct.h>  // if we ever use GPIO.out_w1ts
+#include <renderTypes.h>
 
 class Renderer {
 public:
@@ -26,7 +27,7 @@ public:
     uint8_t* getBackBuffer();
     void markBackBufferFilled();
     bool isBackBufferFilled();
-    void clearFrameBuffer(uint8_t* framebuffer);
+    void clearFrameBuffer(FrameBuffer framebuffer);
 
 private:
     void initSpi();

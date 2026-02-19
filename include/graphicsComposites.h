@@ -6,8 +6,6 @@
 #include <renderTypes.h>
 #include <colors.h>
 
-extern GraphicsPrimitives gPrim;
-
 // eyeball movement enum
 enum EYEBALL_MOVE { LEFT, RIGHT, UP, DOWN, CENTER };
 

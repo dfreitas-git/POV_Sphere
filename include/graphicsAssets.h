@@ -6,7 +6,10 @@
 #include <renderer.h>
 #include <renderTypes.h>
 
-extern Renderer renderer;
+// Just used so we can have a pointer in the Image structure (see images.h)
+// Since the actual callback is inside the graphicsAssets class we can only
+// call the method, we can't get the pointer to it, so we wrap the call outside the class.
+void imageWrapper(FrameBuffer bbuf);
 
 //#####################
 //  Class Definition                         
@@ -14,7 +17,7 @@ extern Renderer renderer;
 class GraphicsAssets {
 
 public:
-void fillBB_image();
+  void image(FrameBuffer bbuf);
 
 private:
 

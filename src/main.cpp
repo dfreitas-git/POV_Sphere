@@ -60,8 +60,8 @@
 #include <globals.h>
 #include <graphicsPrimitives.h>
 #include <graphicsComposites.h>
+#include <graphicsAnimations.h>
 #include <graphicsAssets.h>
-#include <graphicsFunctions.h>
 #include <renderer.h>
 #include <Adafruit_SSD1306.h>
 #include <ClickEncoder.h>
@@ -108,9 +108,10 @@ TaskHandle_t motorTaskHandle;
 Motor motor;
 UI ui;
 Renderer renderer;
+GraphicsAssets gAsset;
 GraphicsPrimitives gPrim;
 GraphicsComposites gComp;
-GraphicsAssets gAsset;
+GraphicsAnimations gAnim;
 
 
 //#########################################
@@ -158,9 +159,9 @@ void setup() {
 
   // Need to initialize the shootingStar of fireworks seeds
   if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
-    initShootingStars();
+    gAnim.initShootingStars();
   } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
-    initRocket();
+    gAnim.initRocket();
   }
 
   // Initialize SPI and create and clear framebuffers
@@ -372,14 +373,14 @@ void graphicsTask(void* parameter) {
         renderer.clearFrameBuffer(renderer.getBackBuffer());
         renderer.markBackBufferFilled();
         if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
-          initShootingStars();
+          gAnim.initShootingStars();
         } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
-          initRocket();
+          gAnim.initRocket();
         }
         previousImageToDisplayIndex = imageToDisplayIndex;
       }
-
-      imageTable[imageToDisplayIndex]->functionPtr();
+      FrameBuffer bbuf = renderer.getBackBuffer();
+      imageTable[imageToDisplayIndex]->functionPtr(bbuf);
       renderer.markBackBufferFilled();
     }
 

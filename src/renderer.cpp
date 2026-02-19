@@ -50,7 +50,7 @@ bool Renderer::isBackBufferFilled() {
 }
 
 // clear the specified framebuffer
-void Renderer::clearFrameBuffer(uint8_t* frameBuffer) {
+void Renderer::clearFrameBuffer(FrameBuffer frameBuffer) {
   memset(frameBuffer, 0, TOTAL_COLUMNS_RGB_BYTES);
 }
 

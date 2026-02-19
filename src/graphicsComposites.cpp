@@ -1,6 +1,8 @@
 
 #include <graphicsComposites.h>
 
+extern GraphicsPrimitives gPrim;
+
 //########################################
 //  Draw Eyeball
 // "move" uses an enum CENTER/LEFT/RIGHT/UP/DOWN 

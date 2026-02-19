@@ -1,16 +1,22 @@
 #include <graphicsAssets.h>
 
+extern GraphicsAssets gAsset;
+extern Renderer renderer;
+
+void imageWrapper(FrameBuffer bbuf) {
+  gAsset.image(bbuf);
+}
+
 //###################################################################
 // Fill the backbuffer in preperation for the next displayed frame
 // Assumes a 120x48 image imported from Gimp in rgb565 format (two
 // bytes per pixel).  Images stored in include/images.h
 //###################################################################
-void fillBB_image() {
+void GraphicsAssets::image(FrameBuffer bbuf) {
 
   // Reading an image created by Gimp (loaded from images.h)
   // and expanding/writing the bytes into the framebuffer.  framebuffer always
   // is loaded with rgb888  (one byte per r, g, b) per pixel.
-  uint8_t* bbuf = renderer.getBackBuffer();
   for (unsigned col = 0; col < imageTable[imageToDisplayIndex]->width; col++) {
 
     // Start at row 0, this column in the Gimp pixel array

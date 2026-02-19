@@ -7,6 +7,11 @@
 #include <arduino.h>
 #include <stdint.h>
 #include <gimp_compat.h>
+#include <renderTypes.h>
+#include <renderer.h>
+#include <graphicsAnimations.h>
+#include <graphicsAssets.h>
+
 
 /****************************************************/
 /* List of images and pointers to the image structures
@@ -44,35 +49,39 @@ enum ImageID {
 //************************
 // Structure definitions
 //************************
+
+typedef void (*RenderFn)(FrameBuffer);
+
 typedef struct {
     const char *name;
     unsigned int width;
     unsigned int height;
     unsigned int  bytes_per_pixel;
     const uint8_t *pixel_data;
-    void (*functionPtr)();
+    RenderFn functionPtr;
 } Image;
 
+extern void imageWrapper(FrameBuffer bbuf);
+
 // prototypes for the rendering functions
-void fillBB_image(); 
-void fillBB_fade();
-void fillBB_hFade();
-void fillBB_vFade();
-void fillBB_paint();
-void fillBB_hBands();
-void fillBB_checker();
-void fillBB_pacman();
-void fillBB_pacman1();
-void fillBB_spiralR();
-void fillBB_spiralL();
-void fillBB_spiralD();
-void fillBB_diamond();
-void fillBB_flower();
-void fillBB_eyeball();
-void fillBB_pinecrest();
-void fillBB_shootingStar();
-void fillBB_sparkShower();
-void fillBB_fireworks();
+void fadeWrapper(FrameBuffer bbuf);
+void hFadeWrapper(FrameBuffer bbuf);
+void vFadeWrapper(FrameBuffer bbuf);
+void hBandsWrapper(FrameBuffer bbuf);
+void paintWrapper(FrameBuffer bbuf);
+void checkerWrapper(FrameBuffer bbuf);
+void spiralRWrapper(FrameBuffer bbuf);
+void spiralLWrapper(FrameBuffer bbuf);
+void spiralDWrapper(FrameBuffer bbuf);
+void diamondWrapper(FrameBuffer bbuf);
+void flowerWrapper(FrameBuffer bbuf);
+void eyeballWrapper(FrameBuffer bbuf);
+void pinecrestWrapper(FrameBuffer bbuf);
+void pacmanWrapper(FrameBuffer bbuf);
+void pacman1Wrapper(FrameBuffer bbuf);
+void shootingStarWrapper(FrameBuffer bbuf);
+void sparkShowerWrapper(FrameBuffer bbuf);
+void fireworksWrapper(FrameBuffer bbuf);
 
 extern const Image *imageTable[IMG_COUNT];
 
@@ -423,7 +432,7 @@ const Image testDotWrap = {
     .height = testDot.height,
     .bytes_per_pixel = testDot.bytes_per_pixel,
     .pixel_data = testDot.pixel_data,
-    .functionPtr = fillBB_image,
+    .functionPtr = imageWrapper,
 };
 
 
@@ -775,7 +784,7 @@ const Image testLWrap = {
     .height = testL.height,
     .bytes_per_pixel = testL.bytes_per_pixel,
     .pixel_data = testL.pixel_data,
-    .functionPtr = fillBB_image,
+    .functionPtr = imageWrapper,
 };
 
 
@@ -1139,7 +1148,7 @@ const Image helloWorldWrap = {
     .height = helloWorld.height,
     .bytes_per_pixel = helloWorld.bytes_per_pixel,
     .pixel_data = helloWorld.pixel_data,
-    .functionPtr = fillBB_image,
+    .functionPtr = imageWrapper,
 };
 
 
@@ -1474,7 +1483,7 @@ const Image worldMapWrap = {
     .height = worldMap.height,
     .bytes_per_pixel = worldMap.bytes_per_pixel,
     .pixel_data = worldMap.pixel_data,
-    .functionPtr = fillBB_image,
+    .functionPtr = imageWrapper,
 };
 
 
@@ -2087,7 +2096,7 @@ const Image saffronWrap = {
     .height = saffron.height,
     .bytes_per_pixel = saffron.bytes_per_pixel,
     .pixel_data = saffron.pixel_data,
-    .functionPtr = fillBB_image,
+    .functionPtr = imageWrapper,
 };
 
 
@@ -2517,7 +2526,7 @@ const Image val_2026Wrap = {
     .height = val_2026.height,
     .bytes_per_pixel = val_2026.bytes_per_pixel,
     .pixel_data = val_2026.pixel_data,
-    .functionPtr = fillBB_image,
+    .functionPtr = imageWrapper,
 };
 
 
@@ -3021,7 +3030,7 @@ const Image roadrunWrap = {
     .height = roadrun.height,
     .bytes_per_pixel = roadrun.bytes_per_pixel,
     .pixel_data = roadrun.pixel_data,
-    .functionPtr = fillBB_image,
+    .functionPtr = imageWrapper,
 };
 
 
@@ -3442,7 +3451,7 @@ const Image donduckWrap = {
     .height = donduck.height,
     .bytes_per_pixel = donduck.bytes_per_pixel,
     .pixel_data = donduck.pixel_data,
-    .functionPtr = fillBB_image,
+    .functionPtr = imageWrapper,
 };
 
 
@@ -3458,7 +3467,7 @@ const Image fadeWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_fade,
+    .functionPtr = fadeWrapper,
 };
 
 // Horizontal bars that fade and change color on each cycle
@@ -3468,7 +3477,7 @@ const Image hFadeWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_hFade,
+    .functionPtr = hFadeWrapper,
 };
 
 // Vertical bars that fade and change color on each cycle
@@ -3478,7 +3487,7 @@ const Image vFadeWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_vFade,
+    .functionPtr = vFadeWrapper,
 };
 
 // Horizontal bands flowing out the top down the Sphere
@@ -3488,7 +3497,7 @@ const Image hBandsWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_hBands,
+    .functionPtr = hBandsWrapper,
 };
 
 // Color sheeting out the top, down the Sphere
@@ -3499,7 +3508,7 @@ const Image paintWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_paint,
+    .functionPtr = paintWrapper,
 };
 
 // Checker board pattern with colors cycling through the tiles
@@ -3509,7 +3518,7 @@ const Image checkerWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_checker,
+    .functionPtr = checkerWrapper,
 };
 
 // Full sphere sized Pacman chomping
@@ -3519,7 +3528,7 @@ const Image pacmanWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_pacman,
+    .functionPtr = pacmanWrapper,
 };
 
 // Pacman chasing ghosts
@@ -3529,7 +3538,7 @@ const Image pacman1Wrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_pacman1,
+    .functionPtr = pacman1Wrapper,
 };
 
 // SpiralR - Spirals twisting up and to the right
@@ -3539,7 +3548,7 @@ const Image spiralRWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_spiralR,
+    .functionPtr = spiralRWrapper,
 };
 
 // SpiralL - Spirals twisting up and to the left
@@ -3549,7 +3558,7 @@ const Image spiralLWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_spiralL,
+    .functionPtr = spiralLWrapper,
 };
 
 // Spiral Double - Two sets of spirals, one left, one right
@@ -3559,7 +3568,7 @@ const Image spiralDWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_spiralD,
+    .functionPtr = spiralDWrapper,
 };
 
 // Diamond  -  Pulsing concentric diamonds in different colors
@@ -3569,7 +3578,7 @@ const Image diamondWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_diamond,
+    .functionPtr = diamondWrapper,
 };
 
 // Flower - Interleaving flower pedals rising to meet each other
@@ -3579,7 +3588,7 @@ const Image flowerWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_flower,
+    .functionPtr = flowerWrapper,
 };
 
 // Eyeball - Giant eyeballs looking/blinking
@@ -3589,7 +3598,7 @@ const Image eyeballWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_eyeball,
+    .functionPtr = eyeballWrapper,
 };
 
 // Pinecrest - Camping scene with marshmallow roasting animation
@@ -3599,7 +3608,7 @@ const Image pinecrestWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_pinecrest,
+    .functionPtr = pinecrestWrapper,
 };
 
 // Shooting Star -  Persistence animation with a bright "heads" shooting across the sphere
@@ -3610,7 +3619,7 @@ const Image shootingStarWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_shootingStar,
+    .functionPtr = shootingStarWrapper,
 };
 
 // sparkShower -  Like a fountain of sparks flowing out the top of the sphere falling down and fading
@@ -3620,7 +3629,7 @@ const Image sparkShowerWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_sparkShower,
+    .functionPtr = sparkShowerWrapper,
 };
 
 // fireworks  -  traditional rockets rising/bursting into many shooting arms
@@ -3630,5 +3639,5 @@ const Image fireworksWrap = {
     .height = 48,
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
-    .functionPtr = fillBB_fireworks,
+    .functionPtr = fireworksWrapper,
 };
