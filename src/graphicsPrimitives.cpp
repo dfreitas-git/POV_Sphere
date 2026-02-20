@@ -1,5 +1,5 @@
 
-#include <graphicsPrimitives.h>
+#include <graphicsGlobals.h>
 
 //#############################################################################
 // Functions for graphics primatives (circles, rectangles, triangles, etc.)

@@ -2,7 +2,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <graphicsPrimitives.h>
 #include <renderTypes.h>
 #include <colors.h>
 

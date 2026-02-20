@@ -6,8 +6,6 @@
 #include <globals.h>
 #include <colors.h>
 #include <fonts.h>
-#include <graphicsPrimitives.h>
-#include <graphicsComposites.h>
 
 extern void fadeWrapper(FrameBuffer bbuf);
 extern void hFadeWrapper(FrameBuffer bbuf);

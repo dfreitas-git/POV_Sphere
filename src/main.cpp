@@ -58,10 +58,7 @@
 // My local modules
 #include <config.h>
 #include <globals.h>
-#include <graphicsPrimitives.h>
-#include <graphicsComposites.h>
-#include <graphicsAnimations.h>
-#include <graphicsAssets.h>
+#include <graphicsGlobals.h>
 #include <renderer.h>
 #include <Adafruit_SSD1306.h>
 #include <ClickEncoder.h>
@@ -108,7 +105,7 @@ TaskHandle_t motorTaskHandle;
 Motor motor;
 UI ui;
 Renderer renderer;
-GraphicsAssets gAsset;
+GraphicsAssets     gAsset;
 GraphicsPrimitives gPrim;
 GraphicsComposites gComp;
 GraphicsAnimations gAnim;

@@ -1,5 +1,6 @@
 
 #include <images.h>
+#include <graphicsGlobals.h>
 
 // This defines the image functions that will be available to the display
 // display menu item in the user UI

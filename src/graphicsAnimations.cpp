@@ -1,9 +1,6 @@
 
-#include <graphicsAnimations.h>
+#include <graphicsGlobals.h>
 
-extern GraphicsPrimitives gPrim;
-extern GraphicsAnimations gAnim;
-extern GraphicsComposites gComp;
 extern Renderer renderer;
 
 void fadeWrapper(FrameBuffer bbuf) {

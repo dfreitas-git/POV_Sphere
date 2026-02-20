@@ -1,7 +1,5 @@
-#include <graphicsAssets.h>
 
-extern GraphicsAssets gAsset;
-extern Renderer renderer;
+#include <graphicsGlobals.h>
 
 void imageWrapper(FrameBuffer bbuf) {
   gAsset.image(bbuf);

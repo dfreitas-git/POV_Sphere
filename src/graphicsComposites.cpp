@@ -1,7 +1,5 @@
 
-#include <graphicsComposites.h>
-
-extern GraphicsPrimitives gPrim;
+#include <graphicsGlobals.h>
 
 //########################################
 //  Draw Eyeball
