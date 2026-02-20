@@ -58,7 +58,6 @@
 // My local modules
 #include <config.h>
 #include <globals.h>
-#include <graphicsGlobals.h>
 #include <renderer.h>
 #include <Adafruit_SSD1306.h>
 #include <ClickEncoder.h>
@@ -67,6 +66,12 @@
 #include <images.h>
 #include <motor.h>
 #include <UI.h>
+#include <graphicsAssets.h>
+#include <graphicsPrimitives.h>
+#include <graphicsComposites.h>
+#include <graphicsAnimations.h>
+#include <graphicsScenes.h>
+#include <graphicsGlobals.h>
 
 
 // uncomment this to print the stack size used for each of the freeRTOS tasks
@@ -105,10 +110,11 @@ TaskHandle_t motorTaskHandle;
 Motor motor;
 UI ui;
 Renderer renderer;
-GraphicsAssets     gAsset;
 GraphicsPrimitives gPrim;
+GraphicsAssets     gAsset;
 GraphicsComposites gComp;
 GraphicsAnimations gAnim;
+GraphicsScenes     gScene;
 
 
 //#########################################

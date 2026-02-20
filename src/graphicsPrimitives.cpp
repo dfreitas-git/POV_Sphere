@@ -1,4 +1,5 @@
 
+#include <graphicsPrimitives.h>
 #include <graphicsGlobals.h>
 
 //#############################################################################

@@ -18,6 +18,9 @@ public:
   void drawEyeball(FrameBuffer bbuf, int centerX, int centerY, int radius, const struct RGB& eyeColor, const struct RGB& bgColor, const struct RGB& fgColor, int move );
   void drawGhost(FrameBuffer bbuf, int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, const struct RGB& eyeColor, bool jumpUp);
   void drawPacman(FrameBuffer bbuf,int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen);
+  void drawCampfire(FrameBuffer bbuf,int centerX, int centerY);
+  void drawRoastingStick(FrameBuffer bbuf,int centerX, int centerY);
+  void pinecrestLetters(FrameBuffer bbuf,int startX, int startY);
 
 private:
 

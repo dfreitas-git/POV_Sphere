@@ -1,4 +1,8 @@
 
+#include <graphicsPrimitives.h>
+#include <graphicsComposites.h>
+#include <graphicsAnimations.h>
+#include <graphicsScenes.h>
 #include <graphicsGlobals.h>
 
 extern Renderer renderer;
@@ -40,7 +44,7 @@ void eyeballWrapper(FrameBuffer bbuf) {
   gAnim.eyeball(bbuf);
 }
 void pinecrestWrapper(FrameBuffer bbuf) {
-  gAnim.pinecrest(bbuf);
+  gScene.pinecrest(bbuf);
 }
 void pacmanWrapper(FrameBuffer bbuf) {
   gAnim.pacman(bbuf);
@@ -102,6 +106,15 @@ float GraphicsAnimations::clamp(float val, float minVal, float maxVal) {
     return maxVal;
   } else {
     return val;
+  }
+}
+
+// Fill the sphere background
+void GraphicsAnimations::clearBackground(FrameBuffer bbuf) {
+  for (int col = 0; col < COLUMNS; col++) {
+    for (int row = 0; row < ROWS; row++) {
+      gPrim.writePixel(bbuf,col, row, {0,0,0});
+    }
   }
 }
 
@@ -777,30 +790,6 @@ bool GraphicsAnimations::renderBlink(uint32_t now) {
   return true;  // eyes closed (or partially, if you interpolate)
 }
 
-//#########  Edge based state update based on what time we have reached
-void GraphicsAnimations::updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* timeline, size_t eventCount, size_t& owlNextEvent) {
-
-  uint32_t sceneElapsed = now - sceneStartTime;
-  
-  while (owlNextEvent < eventCount && sceneElapsed >= timeline[owlNextEvent].timeMs) {
-    switch (timeline[owlNextEvent].type) {
-      case OWL_BLINK:
-        owl.blinkActive = true;
-        owl.blinkStartTime = now;
-        break;
-  
-      case OWL_SQUAWK_ON:
-        owl.squawking = true;
-        owl.squawkStartTime = now;
-        break;
-  
-      case OWL_SQUAWK_OFF:
-        owl.squawking = false;
-        break;
-    }
-    owlNextEvent++;
-  }
-}
 
 //########## rendering for each of the marshmallow phases #############
 // Just sit there on the stick
@@ -860,52 +849,6 @@ void GraphicsAnimations::renderSmoke(uint32_t t, palette& colors) {
     mm.color = colors.white;
 }
 
-//#########  Edge triggered transition state change based on what time we reach
-void GraphicsAnimations::updateMarshmallowEvents(uint32_t now, uint32_t sceneStartTime, const MarshmallowEvent* mmTimeline, size_t eventCount, size_t& mmNextEvent, palette& colors) {
-
-  uint32_t sceneElapsed = now - sceneStartTime;
-
-  while (mmNextEvent < eventCount && sceneElapsed >= mmTimeline[mmNextEvent].timeMs) {
-    switch (mmTimeline[mmNextEvent].type) {
-        case MM_START_ROASTING:
-          mm.phase = MM_RAW;
-          mm.phaseStartTime = now;
-          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
-        break;
-
-        case MM_START_TOASTING:
-          mm.phase = MM_TOASTING;
-          mm.phaseStartTime = now;
-          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
-        break;
-
-        case MM_START_MELTING:
-          mm.phase = MM_MELTING;
-          mm.phaseStartTime = now;
-          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
-        break;
-
-        case MM_START_DROPPING:
-          mm.phase = MM_DROPPING;
-          mm.phaseStartTime = now;
-          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
-        break;
-
-        case MM_START_BURNING:
-          mm.phase = MM_BURNT;
-          mm.phaseStartTime = now;
-          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
-        break;
-
-        case MM_START_SMOKING:
-          mm.phase = MM_SMOKE;
-          mm.phaseStartTime = now;
-          mm.phaseRunTime = mmTimeline[mmNextEvent].phaseTimeMs;
-        break;
-    }
-    mmNextEvent++;
-  }
-}
 
 // Call the rendering functions based on what state we are in
 void GraphicsAnimations::renderMarshmallow(uint32_t now, palette& colors) {
@@ -951,107 +894,6 @@ void GraphicsAnimations::renderMarshmallow(uint32_t now, palette& colors) {
     }
 }
   
-//#############################
-//  Animated Pincrest Scene
-//#############################
-void GraphicsAnimations::pinecrest(FrameBuffer bbuf) {
-
-  // Get the colors
-  static palette c;
-  RGB flames[] = {c.red,c.yellow};
-
-  static uint32_t sceneStartTime = 0;
-  static bool timelineInitialized = false;
-
-  // Use time to control the animation
-  uint32_t now = millis();
-
-  // Start the scene time
-  if (!timelineInitialized) {
-    sceneStartTime = now;
-    timelineInitialized = true;
-  }
-
-  // Fill the background
-  for (int col = 0; col < COLUMNS; col++) {
-    for (int row = 0; row < ROWS; row++) {
-      gPrim.writePixel(bbuf,col, row, c.black);
-    }
-  }
-
-  // campfire
-  gPrim.drawTriangle(bbuf,{50,7},{55,random(16,21)},{60,7},flames[random(2)]);
-  gPrim.drawTriangle(bbuf,{60,7},{65,random(16,21)},{70,7},flames[random(2)]);
-  gPrim.drawTriangle(bbuf,{70,7},{75,random(16,21)},{80,7},flames[random(2)]);
-  gPrim.drawTriangle(bbuf,{55,7},{60,random(16,21)},{65,7},flames[random(2)]);  
-  gPrim.drawTriangle(bbuf,{65,7},{70,random(16,21)},{75,7},flames[random(2)]);
-
-
-  // roasting stick
-  gPrim.drawLine(bbuf,71,25,90,18,1,c.gray);  
-
-  // The marshmallow
-  // define what time events should trigger when and any phase/lerp time for transitions
-  const MarshmallowEvent mmTimeline[] = {
-    { 1000, MM_START_ROASTING, 0 },
-    { 2500, MM_START_TOASTING, 2000 },
-    { 4500, MM_START_MELTING, 3000 },
-    { 7500, MM_START_DROPPING, 1000 },
-    { 8500, MM_START_BURNING, 1000 },
-    { 9500, MM_START_SMOKING, 1500 },
-  };
-  constexpr size_t MM_EVENT_COUNT = sizeof(mmTimeline) / sizeof(mmTimeline[0]);
-
-  // Update marshmallow events state based on time (edge triggered, not time windows)
-  static size_t mmNextEvent = 0;
-  updateMarshmallowEvents(now, sceneStartTime,mmTimeline,MM_EVENT_COUNT, mmNextEvent,c);
-
-  // Now draw the marshmallow given the state and time we are at
-  renderMarshmallow(now, c);
-
-  // the owl
-  // define what time events should trigger when
-  const OwlEvent owlTimeline[] = {
-    { 4000, OWL_BLINK },
-    { 8000, OWL_SQUAWK_ON },
-    { 9500, OWL_SQUAWK_OFF },
-    { 11000, OWL_BLINK },
-  };
-  constexpr size_t OWL_EVENT_COUNT = sizeof(owlTimeline) / sizeof(owlTimeline[0]);
-
-  // Update owl events state based on time (edge triggered, not time windows)
-  static size_t owlNextEvent = 0;
-  updateOwlEvents(now, sceneStartTime,owlTimeline,OWL_EVENT_COUNT, owlNextEvent);
-
-  // Now draw the owl given the state and time we are at
-  bool blink  = renderBlink(now);
-  bool squawk = owl.squawking;
-  gComp.drawOwl(bbuf,100, 25, blink, squawk);
-
-  // PINECREST letters
-  font_7x7 f;
-  gPrim.drawLetter(bbuf,f.P,0 ,32, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.I,7 ,32, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.N,14 ,32, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.E,21 ,32, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.C,28 ,32, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.R,35 ,32, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.E,42 ,32, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.S,49 ,32, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.T,56 ,32, c.black, c.green);
-
-  gPrim.drawLetter(bbuf,f.N2,10 ,18, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.N0,17 ,18, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.N2,24 ,18, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.N6,31 ,18, c.black, c.green);
-
-  // Reset the scene
-  if(now > sceneStartTime + 11500) {
-    timelineInitialized = false;
-    owlNextEvent = 0;
-    mmNextEvent = 0;
-  }
-}
 
 //####################################
 //  Whole globe sized Pacman chomping

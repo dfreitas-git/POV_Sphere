@@ -1,13 +1,14 @@
 
-
 #pragma once
 
-#include "graphicsPrimitives.h"
-#include "graphicsAssets.h"
-#include "graphicsComposites.h"
-#include "graphicsAnimations.h"
+class GraphicsPrimitives;
+class GraphicsAssets;
+class GraphicsComposites;
+class GraphicsAnimations;
+class GraphicsScenes;
 
 extern GraphicsPrimitives gPrim;
 extern GraphicsAssets     gAsset;
 extern GraphicsComposites gComp;
 extern GraphicsAnimations gAnim;
+extern GraphicsScenes     gScene;

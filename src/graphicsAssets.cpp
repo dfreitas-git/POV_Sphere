@@ -1,4 +1,5 @@
 
+#include <graphicsAssets.h>
 #include <graphicsGlobals.h>
 
 void imageWrapper(FrameBuffer bbuf) {

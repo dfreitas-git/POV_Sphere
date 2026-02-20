@@ -9,8 +9,6 @@
 #include <gimp_compat.h>
 #include <renderTypes.h>
 #include <renderer.h>
-//#include <graphicsAnimations.h>
-//#include <graphicsAssets.h>
 
 
 /****************************************************/

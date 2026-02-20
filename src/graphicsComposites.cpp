@@ -1,5 +1,8 @@
 
+#include <graphicsPrimitives.h>
+#include <graphicsComposites.h>
 #include <graphicsGlobals.h>
+#include <fonts.h>
 
 //########################################
 //  Draw Eyeball
@@ -121,4 +124,45 @@ void GraphicsComposites::drawPacman(FrameBuffer bbuf,int centerX, int centerY, c
     // Draw the closed mouth (simple horizontal line)
     gPrim.drawRect(bbuf,centerX-11, centerY, centerX-2, centerY,  0,bgColor);
   }
+}
+
+//##############################
+// Pinecrest elements
+//##############################
+// campfire
+void GraphicsComposites::drawCampfire(FrameBuffer bbuf,int centerX, int centerY) {
+  palette c;
+  RGB flames[] = {c.red,c.yellow};
+  gPrim.drawTriangle(bbuf,{centerX-25,centerY},{centerX-20,random(16,21)},{centerX-15,centerY},flames[random(2)]);
+  gPrim.drawTriangle(bbuf,{centerX-15,centerY},{centerX-10,random(16,21)},{centerX-5,centerY},flames[random(2)]);
+  gPrim.drawTriangle(bbuf,{centerX-5,centerY},{centerX,random(16,21)},{centerX+5,centerY},flames[random(2)]);
+  gPrim.drawTriangle(bbuf,{centerX-20,centerY},{centerX-15,random(16,21)},{centerX-10,centerY},flames[random(2)]);  
+  gPrim.drawTriangle(bbuf,{centerX-10,centerY},{centerX-5,random(16,21)},{centerX,centerY},flames[random(2)]);
+
+}
+
+// roasting Stick
+void GraphicsComposites::drawRoastingStick(FrameBuffer bbuf,int centerX, int centerY) {
+  palette c;
+  gPrim.drawLine(bbuf,centerX-9,centerY+3,centerX+10,centerY-4,1,c.gray);  
+}
+
+// Pinecrest text
+void GraphicsComposites::pinecrestLetters(FrameBuffer bbuf,int startX, int startY) {
+  palette c;
+  font_7x7 f;
+  gPrim.drawLetter(bbuf,f.P,startX ,startY, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.I,startX+7 ,startY, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.N,startX+14 ,startY, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.E,startX+21 ,startY, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.C,startX+28 ,startY, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.R,startX+35 ,startY, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.E,startX+42 ,startY, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.S,startX+49 ,startY, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.T,startX+56 ,startY, c.black, c.green);
+
+  gPrim.drawLetter(bbuf,f.N2,startX+10 ,startY-10, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.N0,startX+17 ,startY-10, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.N2,startX+24 ,startY-10, c.black, c.green);
+  gPrim.drawLetter(bbuf,f.N6,startX+31 ,startY-10, c.black, c.green);
 }
