@@ -6,8 +6,24 @@
 #include <graphicsScenes.h>
 #include <graphicsGlobals.h>
 
+// Constructor for GraphicsScenes. Method-1
+// Two different forms.  This first form is supposedly the official "C++ way" to 
+// initialize the struct directly.  The second way uses the default constructor,
+// then goes back and sets each element explicitly
+GraphicsScenes::GraphicsScenes()
+    : mm{
+        MM_RAW,     // phase
+        0,          // phaseStartTime
+        0,          // phaseRunTime
+        70, 26,     // cx, cy
+        0,          // rotation
+        3,          // halfSize
+        {0,0,0}     // color
+      }
+{}
 
-// Constructor for GraphicsScenes
+/*
+// Constructor for GraphicsScenes.  Method-2
 GraphicsScenes::GraphicsScenes()
 {
     mm.phase = MM_RAW;
@@ -18,6 +34,7 @@ GraphicsScenes::GraphicsScenes()
     mm.halfSize = 3;
     mm.color = {0,0,0};
 }
+*/
 
 //#########  Pinecrest Edge based state update based on what time we have reached
 void GraphicsScenes::updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* timeline, size_t eventCount, size_t& owlNextEvent) {
