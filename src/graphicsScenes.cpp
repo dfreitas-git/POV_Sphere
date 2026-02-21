@@ -1,28 +1,23 @@
 
+// Animation Scenes.  Contains just animation, composite placements, state, and timing
+
 #include <graphicsComposites.h>
 #include <graphicsAnimations.h>
 #include <graphicsScenes.h>
 #include <graphicsGlobals.h>
 
-// Animation Scenes.  Contains just animation, composite placements, state, and timing
 
-OwlAnimState owl = {
-  .squawking = false,
-  .blinkActive = false,
-  .blinkStartTime = 0,
-  .squawkStartTime = 0
-};
-
-// Initial state/phase at the beginning of the scene
-MarshmallowState  mm = {
-  .phase = MM_RAW,
-  .phaseStartTime = 0,
-  .cx = 70, .cy = 26,
-  .rotation = 0,
-  .halfSize = 3,
-  .color = {0,0,0}
-};
-
+// Constructor for GraphicsScenes
+GraphicsScenes::GraphicsScenes()
+{
+    mm.phase = MM_RAW;
+    mm.phaseStartTime = 0;
+    mm.cx = 70;
+    mm.cy = 26;
+    mm.rotation = 0;
+    mm.halfSize = 3;
+    mm.color = {0,0,0};
+}
 
 //#########  Pinecrest Edge based state update based on what time we have reached
 void GraphicsScenes::updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* timeline, size_t eventCount, size_t& owlNextEvent) {
@@ -47,6 +42,20 @@ void GraphicsScenes::updateOwlEvents(uint32_t now, uint32_t sceneStartTime, cons
     }
     owlNextEvent++;
   }
+}
+
+// visible owl blink
+const uint32_t BLINK_DURATION_MS = 200;   
+
+bool GraphicsScenes::isBlinkActive(uint32_t now) {
+  if (!owl.blinkActive) return false;
+
+  uint32_t elapsed = now - owl.blinkStartTime;
+  if (elapsed >= BLINK_DURATION_MS) {
+    owl.blinkActive = false;
+    return false;
+  }
+  return true;  // eyes closed (or partially, if you interpolate)
 }
 
 //#########  Edge triggered transition state change based on what time we reach
@@ -102,7 +111,8 @@ void GraphicsScenes::updateMarshmallowEvents(uint32_t now, uint32_t sceneStartTi
 void GraphicsScenes::pinecrest(FrameBuffer bbuf) {
 
   // Get the colors
-  static palette c;
+  //dlf static palette c;
+  palette c;
 
   static uint32_t sceneStartTime = 0;
   static bool timelineInitialized = false;
@@ -140,7 +150,7 @@ void GraphicsScenes::pinecrest(FrameBuffer bbuf) {
   updateMarshmallowEvents(now, sceneStartTime,mmTimeline,MM_EVENT_COUNT, mmNextEvent,c);
 
   // Now draw the marshmallow given the state and time we are at
-  gAnim.renderMarshmallow(now, c);
+  gAnim.renderMarshmallow(bbuf, mm, now, c);
 
   // the owl
   // define what time events should trigger when
@@ -157,9 +167,9 @@ void GraphicsScenes::pinecrest(FrameBuffer bbuf) {
   updateOwlEvents(now, sceneStartTime,owlTimeline,OWL_EVENT_COUNT, owlNextEvent);
 
   // Now draw the owl given the state and time we are at
-  bool blink  = gAnim.renderBlink(now);
+  bool blink  = isBlinkActive(now);
   bool squawk = owl.squawking;
-  gComp.drawOwl(bbuf,100, 25, blink, squawk);
+  gComp.drawOwl(bbuf,100,25,blink,squawk);
 
   // PINECREST letters
   gComp.pinecrestLetters(bbuf,0,30);

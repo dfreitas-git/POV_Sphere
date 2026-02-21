@@ -7,25 +7,7 @@
 #include <colors.h>
 #include <fonts.h>
 
-extern void fadeWrapper(FrameBuffer bbuf);
-extern void hFadeWrapper(FrameBuffer bbuf);
-extern void vFadeWrapper(FrameBuffer bbuf);
-extern void hBandsWrapper(FrameBuffer bbuf);
-extern void paintWrapper(FrameBuffer bbuf);
-extern void checkerWrapper(FrameBuffer bbuf);
-extern void spiralRWrapper(FrameBuffer bbuf);
-extern void spiralLWrapper(FrameBuffer bbuf);
-extern void spiralDWrapper(FrameBuffer bbuf);
-extern void diamondWrapper(FrameBuffer bbuf);
-extern void flowerWrapper(FrameBuffer bbuf);
-extern void eyeballWrapper(FrameBuffer bbuf);
-extern void pinecrestWrapper(FrameBuffer bbuf);
-extern void pacmanWrapper(FrameBuffer bbuf);
-extern void pacman1Wrapper(FrameBuffer bbuf);
-extern void shootingStarWrapper(FrameBuffer bbuf);
-extern void sparkShowerWrapper(FrameBuffer bbuf);
-extern void fireworksWrapper(FrameBuffer bbuf);
-
+struct MarshmallowState;
 
 // Struct for the shootingStar animation
 #define NUM_STARS 20
@@ -66,48 +48,25 @@ class GraphicsAnimations {
     void diamond(FrameBuffer bbuf);
     void flower(FrameBuffer bbuf);
     void eyeball(FrameBuffer bbuf);
-    bool renderBlink(uint32_t now);
-    void renderRaw(uint32_t t, palette& colors);
-    void renderToasting(uint32_t t, palette& colors);
-    void renderMelting(uint32_t t, palette& colors);
-    void renderDropping(uint32_t t, palette& colors);
-    void renderBurnt(uint32_t t, palette& colors);
-    void renderSmoke(uint32_t t, palette& colors);
-    void renderMarshmallow(uint32_t now, palette& colors);
     void pacman(FrameBuffer bbuf);
     void pacman1(FrameBuffer bbuf);
     void shootingStar(FrameBuffer bbuf);
     void sparkShower(FrameBuffer bbuf);
     void fireworks(FrameBuffer bbuf);
+    void renderMarshmallow(FrameBuffer bbuf, MarshmallowState& mm,uint32_t now, palette& colors);
 
   private:
     float lerp(float a, float b, float f);
     void  lerpColor(RGB& out, RGB& a, RGB& b, float f);
     float clamp(float val, float minVal, float maxVal);
-    void fadeFramebuffer(uint8_t decay);
-    void writeHead(int col, int row, RGB color);
+    void fadeFramebuffer(FrameBuffer bbuf, uint8_t decay);
+    void writeHead(FrameBuffer bbuf, int col, int row, RGB color);
     void initExplosion(float x, float y);
     void shiftDown(FrameBuffer bbuf);
+    void renderRaw(MarshmallowState& mm, uint32_t t, palette& colors);
+    void renderToasting(MarshmallowState& mm, uint32_t t, palette& colors);
+    void renderMelting(MarshmallowState& mm, uint32_t t, palette& colors);
+    void renderDropping(MarshmallowState& mm, uint32_t t, palette& colors);
+    void renderBurnt(MarshmallowState& mm, uint32_t t, palette& colors);
+    void renderSmoke(MarshmallowState& mm, uint32_t t, palette& colors);
 };
-
-// wrapper
-/*
-void fadeWrapper(FrameBuffer buf);
-void hFadeWrapper(FrameBuffer bbuf);
-void vFadeWrapper(FrameBuffer bbuf);
-void hBandsWrapper(FrameBuffer bbuf);
-void paintWrapper(FrameBuffer bbuf);
-void checkerWrapper(FrameBuffer bbuf);
-void spiralRWrapper(FrameBuffer bbuf);
-void spiralLWrapper(FrameBuffer bbuf);
-void spiralDWrapper(FrameBuffer bbuf);
-void diamondWrapper(FrameBuffer bbuf);
-void flowerWrapper(FrameBuffer bbuf);
-void eyeballWrapper(FrameBuffer bbuf);
-void pinecrestWrapper(FrameBuffer bbuf);
-void pacmanWrapper(FrameBuffer bbuf);
-void pacman1Wrapper(FrameBuffer bbuf);
-void shootingStarWrapper(FrameBuffer bbuf);
-void sparkShowerWrapper(FrameBuffer bbuf);
-void fireworksWrapper(FrameBuffer bbuf);
-*/

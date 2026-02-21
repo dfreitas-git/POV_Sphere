@@ -69,9 +69,6 @@ Star stars[NUM_STARS];
 FireworkState fwState = FIREWORK_ROCKET;
 uint32_t stateStartTime = 0;
 
-// visible owl blink
-const uint32_t BLINK_DURATION_MS = 200;   
-
 // ###########################
 // Helpful utility functions
 // ############################
@@ -778,22 +775,9 @@ void GraphicsAnimations::eyeball(FrameBuffer bbuf) {
 //############# Helper functions for the Pinecrest animation ###################
 //###############################################################################
 
-//######## rendering the owl blink #############
-bool GraphicsAnimations::renderBlink(uint32_t now) {
-  if (!owl.blinkActive) return false;
-
-  uint32_t elapsed = now - owl.blinkStartTime;
-  if (elapsed >= BLINK_DURATION_MS) {
-    owl.blinkActive = false;
-    return false;
-  }
-  return true;  // eyes closed (or partially, if you interpolate)
-}
-
-
 //########## rendering for each of the marshmallow phases #############
 // Just sit there on the stick
-void GraphicsAnimations::renderRaw(uint32_t t, palette& colors) {
+void GraphicsAnimations::renderRaw(MarshmallowState& mm, uint32_t t, palette& colors) {
     mm.rotation = 0;
     mm.cy       = 26;
     mm.halfSize = 3;
@@ -801,7 +785,7 @@ void GraphicsAnimations::renderRaw(uint32_t t, palette& colors) {
 }
 
 // Strart toasting - turn brown
-void GraphicsAnimations::renderToasting(uint32_t t, palette& colors) {
+void GraphicsAnimations::renderToasting(MarshmallowState& mm, uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.rotation = lerp(0,10,u);
@@ -811,7 +795,7 @@ void GraphicsAnimations::renderToasting(uint32_t t, palette& colors) {
 }
 
 // Strart melting/dropping
-void GraphicsAnimations::renderMelting(uint32_t t, palette& colors) {
+void GraphicsAnimations::renderMelting(MarshmallowState& mm, uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.rotation = lerp(10,20,u);
@@ -822,7 +806,7 @@ void GraphicsAnimations::renderMelting(uint32_t t, palette& colors) {
 }
 
 // Drop into the file
-void GraphicsAnimations::renderDropping(uint32_t t, palette& colors) {
+void GraphicsAnimations::renderDropping(MarshmallowState& mm, uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(26,18,u);
@@ -831,7 +815,7 @@ void GraphicsAnimations::renderDropping(uint32_t t, palette& colors) {
     lerpColor(mm.color, colors.brown, colors.darkgray, u);
 }
 // Burned sitting in the fire
-void GraphicsAnimations::renderBurnt(uint32_t t, palette& colors) {
+void GraphicsAnimations::renderBurnt(MarshmallowState& mm, uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(18,10,u);
@@ -841,7 +825,7 @@ void GraphicsAnimations::renderBurnt(uint32_t t, palette& colors) {
 }
 
 // Up in smoke
-void GraphicsAnimations::renderSmoke(uint32_t t, palette& colors) {
+void GraphicsAnimations::renderSmoke(MarshmallowState& mm, uint32_t t, palette& colors) {
     // check for 0 case so we don't get div by zero error
     float u = (mm.phaseRunTime > 0) ? clamp(t / float(mm.phaseRunTime), 0.0f, 1.0f) : 1.0f;
     mm.cy = lerp(10,44,u);
@@ -851,33 +835,32 @@ void GraphicsAnimations::renderSmoke(uint32_t t, palette& colors) {
 
 
 // Call the rendering functions based on what state we are in
-void GraphicsAnimations::renderMarshmallow(uint32_t now, palette& colors) {
-  uint8_t* bbuf = renderer.getBackBuffer();
+void GraphicsAnimations::renderMarshmallow(FrameBuffer bbuf, MarshmallowState& mm, uint32_t now, palette& colors) {
   uint32_t phaseElapsed = now - mm.phaseStartTime;
 
     switch (mm.phase) {
         case MM_RAW:
-            renderRaw(phaseElapsed, colors);
+            renderRaw(mm,phaseElapsed, colors);
             break;
 
         case MM_TOASTING:
-            renderToasting(phaseElapsed,colors);
+            renderToasting(mm,phaseElapsed,colors);
             break;
 
         case MM_MELTING:
-            renderMelting(phaseElapsed,colors);
+            renderMelting(mm,phaseElapsed,colors);
             break;
 
         case MM_DROPPING:
-            renderDropping(phaseElapsed,colors);
+            renderDropping(mm,phaseElapsed,colors);
             break;
 
         case MM_BURNT:
-            renderBurnt(phaseElapsed,colors);
+            renderBurnt(mm,phaseElapsed,colors);
             break;
 
         case MM_SMOKE:
-            renderSmoke(phaseElapsed,colors);
+            renderSmoke(mm,phaseElapsed,colors);
             break;
     }
     if(mm.phase == MM_SMOKE) {
@@ -1004,8 +987,7 @@ void GraphicsAnimations::pacman1(FrameBuffer bbuf) {
 //  behind it.
 //###############################################################################
 //     Helper functions 
-void GraphicsAnimations::fadeFramebuffer(uint8_t decay) {
-  uint8_t* bbuf = renderer.getBackBuffer();
+void GraphicsAnimations::fadeFramebuffer(FrameBuffer bbuf, uint8_t decay) {
   for (int col = 0; col < COLUMNS; col++) {
     for (int row = 0; row < ROWS; row++) {
       for (int c = 0; c < 3; c++) {
@@ -1018,8 +1000,7 @@ void GraphicsAnimations::fadeFramebuffer(uint8_t decay) {
 }
 
 // Write the leading pixel for the shootingStar
-void GraphicsAnimations::writeHead(int col, int row, RGB color) {
-  uint8_t* bbuf = renderer.getBackBuffer();
+void GraphicsAnimations::writeHead(FrameBuffer bbuf, int col, int row, RGB color) {
   int idx = (row * COLUMNS + col) * 3;
   bbuf[idx]     = color.r;
   bbuf[idx + 1] = color.g;
@@ -1045,7 +1026,7 @@ void GraphicsAnimations::shootingStar(FrameBuffer bbuf) {
 
   // Iterate over the entire framebuffer subtracting brightness from each
   // pixel until we fade to black
-  fadeFramebuffer(10);   // larger number fades quicker
+  fadeFramebuffer(bbuf, 10);   // larger number fades quicker
 
   for (int i = 0; i < NUM_STARS; i++) {
 
@@ -1152,7 +1133,7 @@ void GraphicsAnimations::fireworks(FrameBuffer bbuf) {
 
   switch (fwState) {
     case FIREWORK_ROCKET: {
-      fadeFramebuffer(30);   // fade the rocket trail faster
+      fadeFramebuffer(bbuf, 30);   // fade the rocket trail faster
       Star *s = &stars[0];
       s->x += s->vx;
       s->y += s->vy;
@@ -1166,7 +1147,7 @@ void GraphicsAnimations::fireworks(FrameBuffer bbuf) {
 
       // Write the bright head of the rocket path
       if (row >= 0 && row < ROWS) {
-        writeHead(col, row, {s->r, s->g, s->b});
+        writeHead(bbuf, col, row, {s->r, s->g, s->b});
       }
 
       // explode at 2/3 height.
@@ -1177,7 +1158,7 @@ void GraphicsAnimations::fireworks(FrameBuffer bbuf) {
     } break;
 
     case FIREWORK_EXPLOSION: {
-      fadeFramebuffer(8);   // Slower fade for the firework burst
+      fadeFramebuffer(bbuf, 8);   // Slower fade for the firework burst
       for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
         Star *s = &stars[i];
 
@@ -1203,7 +1184,7 @@ void GraphicsAnimations::fireworks(FrameBuffer bbuf) {
         int row = (int)s->y;
         
         if (col >= 0 && col < COLUMNS && row >= 0 && row < ROWS) {
-          writeHead(col, row, {s->r, s->g, s->b});
+          writeHead(bbuf, col, row, {s->r, s->g, s->b});
         }
       }
 
@@ -1246,7 +1227,7 @@ void GraphicsAnimations::shiftDown(FrameBuffer bbuf) {
 // Main spark rendering function
 void GraphicsAnimations::sparkShower(FrameBuffer bbuf) {
 
-  fadeFramebuffer(7);   // short persistence
+  fadeFramebuffer(bbuf, 7);   // short persistence
   shiftDown(bbuf);          // actual downward motion
 
   int topRow = ROWS - 1;
