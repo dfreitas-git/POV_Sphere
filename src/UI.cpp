@@ -5,6 +5,8 @@
 #include <ClickEncoder.h>
 #include <Ticker.h>
 
+extern UI ui;
+
 // ######################################
 //   Menus and Rotary Encoder for the UI
 // #######################################
@@ -27,6 +29,22 @@ void UI::begin() {
   buildMenu();
   instance = this;
   encoderTicker.attach_ms(1, UI::encoderServiceStatic);
+}
+
+//#################
+// Variable access
+//#################
+void UI::setImageToDisplayIndex(uint8_t index){
+  imageToDisplayIndex = index;
+}
+uint8_t UI::getImageToDisplayIndex() {
+  return imageToDisplayIndex;
+}
+void UI::setPreviousImageToDisplayIndex(uint8_t index){
+  previousImageToDisplayIndex = index;
+}
+uint8_t UI::getPreviousImageToDisplayIndex() {
+  return previousImageToDisplayIndex;
 }
 
 /* === Encoder ISR ==== */
@@ -54,6 +72,9 @@ void UI::configureRPM(float value, float minVal, float maxVal) {
     menuRPM.maxFloatVal = maxVal;
 }
 
+bool UI::demoAllMode() {
+  return demoAll;
+}
 
 void scrollOnOff(MenuItem*) {
   if(scrollOnOffFlag == 1) {
@@ -66,11 +87,11 @@ void scrollOnOff(MenuItem*) {
 }
 
 void demoOnOff(MenuItem*) {
-  if(demoAll == true) {
-    demoAll = false;
+  if(ui.demoAll == true) {
+    ui.demoAll = false;
      Serial.println("DemoAll Off");
   } else {
-    demoAll = true;
+    ui.demoAll = true;
      Serial.println("DemoAll On");
   }
 }

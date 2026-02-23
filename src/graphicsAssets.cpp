@@ -1,10 +1,13 @@
 
 #include <graphicsAssets.h>
 #include <graphicsGlobals.h>
+#include <UI.h>
 
 void imageWrapper(FrameBuffer bbuf) {
   gAsset.image(bbuf);
 }
+
+extern UI ui;
 
 //###################################################################
 // Fill the backbuffer in preperation for the next displayed frame
@@ -16,11 +19,11 @@ void GraphicsAssets::image(FrameBuffer bbuf) {
   // Reading an image created by Gimp (loaded from images.h)
   // and expanding/writing the bytes into the framebuffer.  framebuffer always
   // is loaded with rgb888  (one byte per r, g, b) per pixel.
-  for (unsigned col = 0; col < imageTable[imageToDisplayIndex]->width; col++) {
+  for (unsigned col = 0; col < imageTable[ui.getImageToDisplayIndex()]->width; col++) {
 
     // Start at row 0, this column in the Gimp pixel array
-    const uint8_t* p = imageTable[imageToDisplayIndex]->pixel_data + (col * 2);
-    for (unsigned row = 0; row < imageTable[imageToDisplayIndex]->height; row++) {
+    const uint8_t* p = imageTable[ui.getImageToDisplayIndex()]->pixel_data + (col * 2);
+    for (unsigned row = 0; row < imageTable[ui.getImageToDisplayIndex()]->height; row++) {
       #if GIMP_RGB565_LITTLE_ENDIAN
         uint16_t rgb565 = (p[1] << 8) | p[0];
       #else
@@ -45,7 +48,7 @@ void GraphicsAssets::image(FrameBuffer bbuf) {
       bbuf[((ROWS-1-row) * COLUMNS * 3) + (col * 3 + 2)] = b8;
 
       // Advance to next row, same column
-      p += imageTable[imageToDisplayIndex]->width * 2;
+      p += imageTable[ui.getImageToDisplayIndex()]->width * 2;
     }
   }
 }

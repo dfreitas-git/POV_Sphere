@@ -163,9 +163,9 @@ void setup() {
   Wire.setClock(800000);  // Speed up I2c to AS5600
 
   // Need to initialize the shootingStar of fireworks seeds
-  if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
+  if(strcmp(imageTable[ui.getImageToDisplayIndex()]->name ,"ShootingS") == 0) {
     gAnim.initShootingStars();
-  } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
+  } else if(strcmp(imageTable[ui.getImageToDisplayIndex()]->name ,"Fireworks") == 0) {
     gScene.initRocket();
   }
 
@@ -361,16 +361,16 @@ void graphicsTask(void* parameter) {
 
     // Load the backBuffer with the next frame to display
     if (!renderer.isBackBufferFilled()) {
-      if(demoAll) {
+      if(ui.demoAllMode()) {
         if(millis() - renderer.getLastAnimateTime() > DEMO_DISPLAY_TIME) {
-          imageToDisplayIndex++;
-          if(imageToDisplayIndex >= IMG_COUNT) {
-            imageToDisplayIndex = 0;
+          ui.setImageToDisplayIndex(ui.getImageToDisplayIndex()+1);
+          if(ui.getImageToDisplayIndex() >= IMG_COUNT) {
+            ui.setImageToDisplayIndex(0);
           }
           renderer.setLastAnimateTime(millis());
         }
       }
-      if(previousImageToDisplayIndex != imageToDisplayIndex) {
+      if(ui.getPreviousImageToDisplayIndex() != ui.getImageToDisplayIndex()) {
 
         // need to flush the framebuffers if we are starting to display a new image 
         renderer.clearFrameBuffer(renderer.getBackBuffer());
@@ -378,15 +378,15 @@ void graphicsTask(void* parameter) {
         renderer.swapBuffers();
         renderer.clearFrameBuffer(renderer.getBackBuffer());
         renderer.markBackBufferFilled();
-        if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
+        if(strcmp(imageTable[ui.getImageToDisplayIndex()]->name ,"ShootingS") == 0) {
           gAnim.initShootingStars();
-        } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
+        } else if(strcmp(imageTable[ui.getImageToDisplayIndex()]->name ,"Fireworks") == 0) {
           gScene.initRocket();
         }
-        previousImageToDisplayIndex = imageToDisplayIndex;
+        ui.setPreviousImageToDisplayIndex(ui.getImageToDisplayIndex());
       }
       FrameBuffer bbuf = renderer.getBackBuffer();
-      imageTable[imageToDisplayIndex]->functionPtr(bbuf);
+      imageTable[ui.getImageToDisplayIndex()]->functionPtr(bbuf);
       renderer.markBackBufferFilled();
     }
 

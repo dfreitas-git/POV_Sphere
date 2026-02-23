@@ -14,12 +14,6 @@ int brightness = 3;               // Sphere Global LED brightness control
 
 //#########################################################################################################3
 
-// Put in ui
-/* ==== Global Menu State ===== */
-uint8_t imageToDisplayIndex = 0;
-uint8_t previousImageToDisplayIndex = 0;
-bool demoAll = false; // Demo mode - When true, rotate through all the display animations
-
 // Core-0 will do the actual angle measurements, Core-1 will sync to them
 uint32_t lastMeasuredTime;         // micros() timestamp
 

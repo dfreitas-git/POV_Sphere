@@ -56,6 +56,7 @@ extern Motor motor;
 
 void motorOnOff(MenuItem*);
 void scrollOnOff(MenuItem*);
+void demoOnOff(MenuItem*);
 
 class UI {
 public:
@@ -72,12 +73,21 @@ public:
     // motor menu access
     void configureRPM(float value, float minVal, float maxVal);
 
+    // Which image to display
+    void setImageToDisplayIndex(uint8_t index);
+    uint8_t getImageToDisplayIndex();
+    void setPreviousImageToDisplayIndex(uint8_t index);
+    uint8_t getPreviousImageToDisplayIndex();
+
+    bool demoAllMode();
+    bool demoAll = false; // Demo mode - When true, rotate through all the display animations
+
 private:
     void buildMenu();
     void updateBlink();
 
-    // Need these static variables to avoid the "this" pointer since the tickerEncoder 
-    // can't deal with that
+    // Need these static variables to avoid the "this" pointer 
+    // since the tickerEncoder can't deal with that
     static UI* instance;
     static void encoderServiceStatic();
 
@@ -96,6 +106,9 @@ private:
     uint32_t lastBlink = 0;
     const uint32_t blinkInterval = 500;
 
+    // Image to display
+    uint8_t imageToDisplayIndex = 0;
+    uint8_t previousImageToDisplayIndex = 0;
 
     // ===== Menu Objects =====
     MenuItem menuMain;
