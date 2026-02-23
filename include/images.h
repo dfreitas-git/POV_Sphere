@@ -10,6 +10,9 @@
 #include <renderTypes.h>
 #include <renderer.h>
 
+// Images to display on the Sphere
+extern const uint8_t NUMBER_OF_DISPLAY_FILES;
+extern const char* imageToDisplay[];
 
 /****************************************************/
 /* List of images and pointers to the image structures

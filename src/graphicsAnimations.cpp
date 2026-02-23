@@ -5,6 +5,7 @@
 #include <graphicsAnimations.h>
 #include <graphicsScenes.h>
 #include <graphicsGlobals.h>
+#include <renderer.h>
 
 extern Renderer renderer;
 extern GraphicsParticles gParticles;

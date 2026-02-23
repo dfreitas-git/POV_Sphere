@@ -1,31 +1,14 @@
 
 #pragma once
 
-#include <images.h>
-
-class Adafruit_SSD1306;
-extern Adafruit_SSD1306 oled;
-class Ticker;
-extern Ticker encoderTicker;
-class ClickEncoder;
-extern ClickEncoder encoder;
 struct MenuItem;
-extern MenuItem menuRPM;
 
-extern volatile bool motorOnOffFlag;   // Turn the mhtor on/off
-extern volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
-extern volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
-extern volatile uint32_t measuredAngle;   // AS5600 raw
+extern volatile bool motorOnOffFlag;    // Turn the mhtor on/off
+extern volatile int32_t omega_ff;       // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
+extern volatile uint16_t omega_trim;    // Accumulated error between measured angle from core-0 and computed angle on core-1
+extern volatile uint32_t measuredAngle; // AS5600 raw
 extern volatile bool scrollOnOffFlag;   // Whether or not the sphere is rotating
 
-extern int brightness;               // Sphere LED brightness
-
-// Images to display on the Sphere
-extern const uint8_t NUMBER_OF_DISPLAY_FILES;
-extern const char* imageToDisplay[];
-
-
-// Constant globals
 
 // ###########################################################
 //   DotStar, LED, DMA, critical timing code running on core-1
