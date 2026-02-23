@@ -9,51 +9,43 @@ class Ticker;
 extern Ticker encoderTicker;
 class ClickEncoder;
 extern ClickEncoder encoder;
-
 struct MenuItem;
 extern MenuItem menuRPM;
 
-// Mutable globlas
-extern int brightness;               // Sphere LED brightness
-extern uint8_t fiveBitBright;        // hold the mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
+extern volatile bool motorOnOffFlag;   // Turn the mhtor on/off
+extern volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
+extern volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
+extern volatile uint32_t measuredAngle;   // AS5600 raw
+extern volatile bool scrollOnOffFlag;   // Whether or not the sphere is rotating
 
-extern int framebufferOffset;         // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
-extern unsigned long lastScrollTime;
-extern unsigned long lastAnimateTime;
+extern int brightness;               // Sphere LED brightness
+
+
+//################################################################################################################
+
+// Put into UI
+/* ==== Global Menu State ===== */
+extern uint8_t imageToDisplayIndex;
+extern uint8_t previousImageToDisplayIndex;
+extern bool demoAll;  // Run each image for 10 seconds on the sphere
 
 // Core-0 will do the actual angle measurements, Core-1 will sync to them
-extern volatile uint32_t measuredAngle;   // AS5600 raw
 extern uint32_t lastMeasuredTime;         // micros() timestamp
 
 // Core-1 PLL variables
 extern int64_t angle_accum;            // 64-bits so integer math doesn't lose remainder precision
 extern int32_t angle_q;                // current predicted angle (Q0, 0–4095)
-extern volatile int32_t omega_ff;      // angle counts per microsecond (Scaled by OMEGA_SHIFT for integer math)
 extern int32_t core_1_omega_ff;        // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
 extern uint16_t core_1_omega_trim;     // local copy used by core-1.
 extern long phase_error;               // Current error between measured angle from core-0 and computed angle on core-1
-extern volatile uint16_t omega_trim;   // Accumulated error between measured angle from core-0 and computed angle on core-1
-
-// Core-1 column position vars
-extern uint32_t nextColumnAngle;
-extern uint16_t columnIndex;
 
 // motor RPM calculating and control
 extern uint16_t lastAngle;
 extern float motorRPM;
-extern volatile bool motorOnOffFlag;   // Turn the mhtor on/off
-
-/* ==== Global Menu State ===== */
-extern uint8_t imageToDisplayIndex;
-extern uint8_t previousImageToDisplayIndex;
 
 // Images to display on the Sphere
 extern const uint8_t NUMBER_OF_DISPLAY_FILES;
 extern const char* imageToDisplay[];
-
-extern volatile bool scrollOnOffFlag;   // Whether or not the sphere is rotating
-extern bool demoAll;  // Run each image for 10 seconds on the sphere
-
 
 
 // Constant globals

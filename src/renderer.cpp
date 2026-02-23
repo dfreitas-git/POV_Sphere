@@ -5,7 +5,9 @@
 // Constructor initialization list
 //#################################
 Renderer::Renderer()
-  : framebufferOffset {0}
+  : framebufferOffset {0},
+    nextColumnAngle {0},
+    columnIndex {0}
 {}
 
 //###################################
@@ -38,6 +40,37 @@ int Renderer::getFramebufferOffset() {
     return framebufferOffset;
 }
 
+//############################
+// Column angle and index vars
+//############################
+void Renderer::setNextColumnAngle(uint32_t angle) {
+    nextColumnAngle = angle;
+}
+uint32_t Renderer::getNextColumnAngle() {
+    return nextColumnAngle;
+}
+void Renderer::setColumnIndex(uint16_t index) {
+    columnIndex = index;
+}
+uint16_t Renderer::getColumnIndex() {
+    return columnIndex;
+}
+
+//##################################
+// For scrolling and demoing images
+//##################################
+void Renderer::setLastScrollTime(unsigned long time) {
+    lastScrollTime = time;
+}
+unsigned long Renderer::getLastScrollTime() {
+    return lastScrollTime;
+}
+void Renderer::setLastAnimateTime(unsigned long time) {
+    lastAnimateTime = time;
+}
+unsigned long Renderer::getLastAnimateTime() {
+    return lastAnimateTime;
+}
 
 //###########################################################
 // Status about if we are in the middle of a DMA transaction

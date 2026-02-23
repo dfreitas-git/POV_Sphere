@@ -33,9 +33,21 @@ public:
   void setBrightness(uint8_t brightness);
   void setFramebufferOffset(int offset);
   int getFramebufferOffset();
+  void setNextColumnAngle(uint32_t angle);
+  uint32_t getNextColumnAngle();
+  void setColumnIndex(uint16_t index);
+  uint16_t getColumnIndex();
+  void setLastScrollTime(unsigned long time);
+  unsigned long getLastScrollTime();
+  void setLastAnimateTime(unsigned long time);
+  unsigned long getLastAnimateTime();
 
 private:
   int framebufferOffset;    // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
+  uint32_t nextColumnAngle;
+  uint16_t columnIndex;
+  unsigned long lastScrollTime;
+  unsigned long lastAnimateTime;
   void initSpi();
   void buildColumn(uint8_t *dst, uint8_t *colPtr);
   void startColumnDma(uint8_t *columnData);

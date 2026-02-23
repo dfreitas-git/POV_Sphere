@@ -187,15 +187,15 @@ void setup() {
 
   // For the core-0 angle measurement update
   lastMeasuredTime = millis();  //Used by core-0
-  lastScrollTime = lastMeasuredTime;  // Used for framebuffer scrolling when rotating the image around the Sphere
+  renderer.setLastScrollTime(lastMeasuredTime);  // Used for framebuffer scrolling when rotating the image around the Sphere
 
   // Initialize the column number based on where the shaft is sitting
   // Do multiply before divide to maintain precision
-  columnIndex = (uint32_t(measuredAngle) * COLUMNS) / AS5600_COUNTS;
+  renderer.setColumnIndex((uint32_t(measuredAngle) * COLUMNS) / AS5600_COUNTS);
 
   // Need to set where the next column will start
   constexpr uint32_t base_step = AS5600_COUNTS / COLUMNS;
-  nextColumnAngle = (columnIndex + 1) * base_step;
+  renderer.setNextColumnAngle((renderer.getColumnIndex() + 1) * base_step);
 
   // Create task to run on core-0 for the UI code (lowest priority)
   xTaskCreatePinnedToCore(
@@ -347,11 +347,11 @@ void graphicsTask(void* parameter) {
 
     // Rotates the image by shifting the index into the framebuffer
     uint32_t curMillis = millis();
-    if(scrollOnOffFlag &&  curMillis - lastScrollTime > SCROLL_UPDATE_TIME) {
+    if(scrollOnOffFlag &&  curMillis - renderer.getLastScrollTime() > SCROLL_UPDATE_TIME) {
 
       // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
       renderer.setFramebufferOffset((renderer.getFramebufferOffset() - 1 + COLUMNS) % COLUMNS);
-      lastScrollTime=curMillis;
+      renderer.setLastScrollTime(curMillis);
     }
 
     // Global brightness: 0b111xxxxx (5-bit current control)
@@ -362,12 +362,12 @@ void graphicsTask(void* parameter) {
     // Load the backBuffer with the next frame to display
     if (!renderer.isBackBufferFilled()) {
       if(demoAll) {
-        if(millis() - lastAnimateTime > DEMO_DISPLAY_TIME) {
+        if(millis() - renderer.getLastAnimateTime() > DEMO_DISPLAY_TIME) {
           imageToDisplayIndex++;
           if(imageToDisplayIndex >= IMG_COUNT) {
             imageToDisplayIndex = 0;
           }
-          lastAnimateTime = millis();
+          renderer.setLastAnimateTime(millis());
         }
       }
       if(previousImageToDisplayIndex != imageToDisplayIndex) {
@@ -455,7 +455,7 @@ void loop() {
 
   uint16_t adjustedAngle = angle_q % AS5600_COUNTS;  // modulo to wrap result in case of overflow
 
-  int32_t triggerPoint = adjustedAngle - nextColumnAngle;
+  int32_t triggerPoint = adjustedAngle - renderer.getNextColumnAngle();
   if(triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
   if(triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;
 
@@ -465,17 +465,17 @@ void loop() {
     // Check to see how many columns the shaft advanced.  Should usually be 1, but if there was some CPU delay the shaft may have advanced further
     uint32_t columnsAdvanced = (triggerPoint * COLUMNS / AS5600_COUNTS) + 1;
 
-    columnIndex = (columnIndex + columnsAdvanced) % COLUMNS;
-    nextColumnAngle = (columnIndex + 1) * (AS5600_COUNTS / COLUMNS);
+    renderer.setColumnIndex((renderer.getColumnIndex() + columnsAdvanced) % COLUMNS);
+    renderer.setNextColumnAngle((renderer.getColumnIndex() + 1) * (AS5600_COUNTS / COLUMNS));
 
     // Take care of angle wrapping from 360->0
-    if (nextColumnAngle >= AS5600_COUNTS) {
-      nextColumnAngle -= AS5600_COUNTS;
+    if (renderer.getNextColumnAngle() >= AS5600_COUNTS) {
+      renderer.setNextColumnAngle(renderer.getNextColumnAngle() - AS5600_COUNTS);
     }
   
     // Go update the four dotStar columns. 
     if(!renderer.isBusy()) {
-      renderer.sendColumn((columnIndex + renderer.getFramebufferOffset()) % COLUMNS);
+      renderer.sendColumn((renderer.getColumnIndex() + renderer.getFramebufferOffset()) % COLUMNS);
 
       // Once we update the column, go chedk if a new frame is ready.  Swap between columns
       if(renderer.isBackBufferFilled()) {
