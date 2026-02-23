@@ -13,16 +13,56 @@ void Motor::begin() {
 }
 
 //########################################
-// Setter / Getter
+// Setters / Getters
 //########################################
+void Motor::setLastMeasuredTime(uint32_t time) {
+    lastMeasuredTime = time;
+}
+uint32_t Motor::getLastMeasuredTime() {
+    return lastMeasuredTime;
+}
+void Motor::setLastAngle(uint16_t angle) {
+    lastAngle = angle;
+}
+uint16_t Motor::getLastAngle() {
+    return lastAngle;
+}
+void Motor::setAngle_q(uint32_t angle) {
+    angle_q = angle;
+}
+uint32_t Motor::getAngle_q() {
+    return angle_q;
+}
+void Motor::setCore_1_omega_ff(uint32_t omega) {
+    core_1_omega_ff = omega;
+}
+uint32_t Motor::getCore_1_omega_ff() {
+    return core_1_omega_ff;
+}
+void Motor::setCore_1_omega_trim(uint16_t omega) {
+    core_1_omega_trim = omega;
+}
+uint16_t Motor::getCore_1_omega_trim() {
+    return core_1_omega_trim;
+}
+void Motor::setPhase_error(long error) {
+    phase_error = error;
+}
+long Motor::getPhase_error() {
+    return phase_error;
+}
+void Motor::setMotorRPM(float rpm) {
+    motorRPM = rpm;
+}
+float Motor::getMotorRPM() const {
+    return motorRPM;
+}
 void Motor::setTargetRPM(float rpm) {
     targetRPM = rpm;
 }
-
 float Motor::getTargetRPM() const {
     return targetRPM;
 }
-
 float Motor::getMinRPM() const {
     return minRPM;
 }

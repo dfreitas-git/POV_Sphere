@@ -183,11 +183,11 @@ void setup() {
   // Get the angle the motor shaft is starting at and initialize the core-1 angle-accumulator/calculator
   //measuredAngle = as5600.getRawAngle(); 
   measuredAngle = motor.getSensor().getRawAngle();
-  angle_q = measuredAngle; 
+  motor.setAngle_q(measuredAngle); 
 
   // For the core-0 angle measurement update
-  lastMeasuredTime = millis();  //Used by core-0
-  renderer.setLastScrollTime(lastMeasuredTime);  // Used for framebuffer scrolling when rotating the image around the Sphere
+  motor.setLastMeasuredTime(millis());  //Used by core-0
+  renderer.setLastScrollTime(motor.getLastMeasuredTime());  // Used for framebuffer scrolling when rotating the image around the Sphere
 
   // Initialize the column number based on where the shaft is sitting
   // Do multiply before divide to maintain precision
@@ -265,45 +265,45 @@ void motorTask(void* parameter) {
     measuredAngle = motor.getSensor().getRawAngle();
 
     // When we get a new actual shaft-angle measurement, use it to adjust our core-1 computed angle to eliminate any drift
-    phase_error = measuredAngle - angle_q;
+    motor.setPhase_error(measuredAngle - motor.getAngle_q());
 
     // Takes care of case where we cross the 360 degree back to 0 degree boundary
-    if (phase_error > 2048)  phase_error -= AS5600_COUNTS;
-    if (phase_error < -2048) phase_error += AS5600_COUNTS;
+    if (motor.getPhase_error() > 2048)  motor.setPhase_error(motor.getPhase_error() - AS5600_COUNTS);
+    if (motor.getPhase_error() < -2048) motor.setPhase_error(motor.getPhase_error() + AS5600_COUNTS);
 
     // Angle error less than this and we won't apply any more correction to the VCO
-    if (abs(long(phase_error)) < PHASE_DEADBAND){
-      phase_error = 0;
+    if (abs(long(motor.getPhase_error())) < PHASE_DEADBAND){
+      motor.setPhase_error(0);
     }
 
     // Small proportional-only correction in frequency to keep angle in sync 
-    omega_trim = (phase_error << OMEGA_SHIFT) / OMEGA_TRIM_PERIOD;
+    omega_trim = (motor.getPhase_error() << OMEGA_SHIFT) / OMEGA_TRIM_PERIOD;
 
     // Limit the trim amount
     omega_trim = constrain(omega_trim, -MAX_TRIM, MAX_TRIM);
 
     // Check the motor speed
-    angleDelta = measuredAngle - lastAngle;
+    angleDelta = measuredAngle - motor.getLastAngle();
 
     // Takes care of case where we cross the 360 degree back to 0 degree boundary
     if (angleDelta > 2048)  angleDelta -= AS5600_COUNTS;
     if (angleDelta < -2048) angleDelta += AS5600_COUNTS;
 
     // Compute rpm by measuring the angle Delta between polling
-    float dt_s = (now - lastMeasuredTime) * 1e-6;
-    motorRPM = (angleDelta * 60.0) / ((AS5600_COUNTS * 1.0) * dt_s);
+    float dt_s = (now - motor.getLastMeasuredTime()) * 1e-6;
+    motor.setMotorRPM((angleDelta * 60.0) / ((AS5600_COUNTS * 1.0) * dt_s));
 
     // Compute the shaft speed that will be used by core-1 to calculate the shaft angle
     // omega_ff is in angle-counts/us  (scaled up by OMEGA_SHIFT for integer math.)
-    omega_ff = int32_t(((motorRPM * pow(2,OMEGA_SHIFT)/ 60) * AS5600_COUNTS) / 1000000);
+    omega_ff = int32_t(((motor.getMotorRPM() * pow(2,OMEGA_SHIFT)/ 60) * AS5600_COUNTS) / 1000000);
 
-    lastAngle = measuredAngle;
-    lastMeasuredTime = now;
+    motor.setLastAngle(measuredAngle);
+    motor.setLastMeasuredTime(now);
 
     //  PID speed regulation
     if (++pidDiv >= PID_DIVIDER) {
       pidDiv = 0;
-      float pwm = motor.updatePID(motorRPM);
+      float pwm = motor.updatePID(motor.getMotorRPM());
   
       // See if the user wants the motor off
       if(motorOnOffFlag == 0) {
@@ -447,13 +447,13 @@ void loop() {
   //sync_low();  // Debug falling edge to measure timing on a scope
 
   // Make a local copy of the shaft speed that core-0 measured.
-  core_1_omega_ff = omega_ff;      // local copies used by core-1.
-  core_1_omega_trim = omega_trim;     
+  motor.setCore_1_omega_ff(omega_ff);      // local copies used by core-1.
+  motor.setCore_1_omega_trim(omega_trim);     
 
   // Now compute the angle_q for the current time (i.e. what the Sphere angle currently is)
   motor.computeCurrentAngle();   
 
-  uint16_t adjustedAngle = angle_q % AS5600_COUNTS;  // modulo to wrap result in case of overflow
+  uint16_t adjustedAngle = motor.getAngle_q() % AS5600_COUNTS;  // modulo to wrap result in case of overflow
 
   int32_t triggerPoint = adjustedAngle - renderer.getNextColumnAngle();
   if(triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
