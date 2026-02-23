@@ -21,10 +21,10 @@ typedef struct {
 class GraphicsParticles {
 
 public:
-  //Star* getStars();
-  // This is used in the star and fireworks animation.  Its the number of stars shooting at any given time
-  Star stars[NUM_STARS];
+  Star* getStars();
 
 private:
+  // This is used in the star and fireworks animation.  Its the number of stars shooting at any given time
+  Star stars[NUM_STARS];
 
 };

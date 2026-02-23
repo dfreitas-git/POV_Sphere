@@ -1,4 +1,5 @@
+#include <graphicsParticles.h>
 
-//Star* GraphicsParticles::getStars() { 
-//  return stars; 
-//}
+Star* GraphicsParticles::getStars() { 
+  return stars; 
+}
