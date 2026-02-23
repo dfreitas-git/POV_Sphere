@@ -1,10 +1,15 @@
 
 // Animation Scenes.  Contains just animation, composite placements, state, and timing
 
+#include <graphicsParticles.h>
+#include <graphicsPrimitives.h>
 #include <graphicsComposites.h>
 #include <graphicsAnimations.h>
 #include <graphicsScenes.h>
 #include <graphicsGlobals.h>
+
+extern GraphicsAnimations gAnim;
+extern GraphicsParticles gParticles;
 
 // Constructor for GraphicsScenes. Method-1
 // Two different forms.  This first form is supposedly the official "C++ way" to 
@@ -35,6 +40,134 @@ GraphicsScenes::GraphicsScenes()
     mm.color = {0,0,0};
 }
 */
+
+// ###############################################
+// Functions for the fireworks animation
+// A classic rocket streaking up and exploding into 
+// a starburst which then fades out
+// ###############################################
+uint8_t NUM_EXPLOSION_STARS;
+void GraphicsScenes::initRocket() {
+
+  Star *s = &gParticles.stars[0];
+
+  s->x  = random(0, COLUMNS);
+  s->y  = 0;   // bottom
+
+  // diagonal upward motion
+  s->vx = random(-100, 100) / 100.0;   // add horizontal drift
+  s->vy = random(120, 160) / 100.0;  // strong upward velocity
+  s->r = 255;
+  s->g = 200;
+  s->b = 100;
+
+  fwState = FIREWORK_ROCKET;
+  stateStartTime = millis();
+}
+
+void GraphicsScenes::initExplosion(float x, float y) {
+
+  uint8_t r,g,b;
+  r = random(150, 255);
+  g = random(100, 255);
+  b = random(100, 255);
+  float speed = random(60, 160) / 100.0;
+  NUM_EXPLOSION_STARS =  random(16,20);
+
+  for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
+    Star *s = &gParticles.stars[i];
+
+    s->x = x;
+    s->y = y;
+
+    float angle = (TWO_PI / NUM_EXPLOSION_STARS) * i;
+
+    s->vx = cos(angle) * speed;
+    s->vy = sin(angle) * speed;
+    s->r = r;
+    s->g = g;
+    s->b = b;
+    s->age = 0;
+    //s->maxAge = random(18, 35);   // ~0.3–0.6 sec at 60fps
+    s->maxAge = 15;            // Keep them all the same size  
+    s->active = true;
+  }
+
+  fwState = FIREWORK_EXPLOSION;
+  stateStartTime = millis();
+}
+
+// ###########################################################
+// Main Fireworks code
+// Control the rocket/explosion phases with state variables
+// ###########################################################
+void GraphicsScenes::fireworks(FrameBuffer bbuf) {
+
+  switch (fwState) {
+    case FIREWORK_ROCKET: {
+      gAnim.fadeFramebuffer(bbuf, 30);   // fade the rocket trail faster
+      Star *s = &gParticles.stars[0];
+      s->x += s->vx;
+      s->y += s->vy;
+
+      // wrap horizontally across the column seam
+      if (s->x < 0)        s->x += COLUMNS;
+      if (s->x >= COLUMNS) s->x -= COLUMNS;
+
+      int col = (int)s->x;
+      int row = (int)s->y;
+
+      // Write the bright head of the rocket path
+      if (row >= 0 && row < ROWS) {
+        gPrim.writePixel(bbuf, col, row, {s->r, s->g, s->b});
+      }
+
+      // explode at 2/3 height.
+      if (s->y > (ROWS * 0.66)) {
+        initExplosion(s->x, s->y);
+      }
+
+    } break;
+
+    case FIREWORK_EXPLOSION: {
+      gAnim.fadeFramebuffer(bbuf, 8);   // Slower fade for the firework burst
+      for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
+        Star *s = &gParticles.stars[i];
+
+        if (!s->active) continue;
+
+        s->x += s->vx;
+        s->y += s->vy;
+
+        s->vx *= 0.97;   // optional drag
+        s->vy *= 0.97;
+
+       if (s->x < 0)        s->x += COLUMNS;
+       if (s->x >= COLUMNS) s->x -= COLUMNS;
+
+        s->age++;
+
+        if (s->age >= s->maxAge) {
+          s->active = false;
+          continue;
+        }
+
+        int col = (int)s->x;
+        int row = (int)s->y;
+        
+        if (col >= 0 && col < COLUMNS && row >= 0 && row < ROWS) {
+          gPrim.writePixel(bbuf, col, row, {s->r, s->g, s->b});
+        }
+      }
+
+      // after 700ms restart cycle
+      if (millis() - stateStartTime > 700) {
+        initRocket();
+      }
+    } break;
+  }
+}
+
 
 //#########  Pinecrest Edge based state update based on what time we have reached
 void GraphicsScenes::updateOwlEvents(uint32_t now, uint32_t sceneStartTime, const OwlEvent* timeline, size_t eventCount, size_t& owlNextEvent) {

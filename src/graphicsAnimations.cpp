@@ -1,4 +1,5 @@
 
+#include <graphicsParticles.h>
 #include <graphicsPrimitives.h>
 #include <graphicsComposites.h>
 #include <graphicsAnimations.h>
@@ -6,6 +7,7 @@
 #include <graphicsGlobals.h>
 
 extern Renderer renderer;
+extern GraphicsParticles gParticles;
 
 void fadeWrapper(FrameBuffer bbuf) {
   gAnim.fade(bbuf);
@@ -43,9 +45,6 @@ void flowerWrapper(FrameBuffer bbuf) {
 void eyeballWrapper(FrameBuffer bbuf) {
   gAnim.eyeball(bbuf);
 }
-void pinecrestWrapper(FrameBuffer bbuf) {
-  gScene.pinecrest(bbuf);
-}
 void pacmanWrapper(FrameBuffer bbuf) {
   gAnim.pacman(bbuf);
 }
@@ -58,16 +57,15 @@ void shootingStarWrapper(FrameBuffer bbuf) {
 void sparkShowerWrapper(FrameBuffer bbuf) {
   gAnim.sparkShower(bbuf);
 }
+
+// These call functions in Scenes class.  Just leaving the wrappers here to keep them all grouped together
+void pinecrestWrapper(FrameBuffer bbuf) {
+  gScene.pinecrest(bbuf);
+}
 void fireworksWrapper(FrameBuffer bbuf) {
-  gAnim.fireworks(bbuf);
+  gScene.fireworks(bbuf);
 }
 
-// This is used in the shootingStar animation.  Its the number of stars shooting at any given time
-Star stars[NUM_STARS];
-
-// State var for the fireworks animation
-FireworkState fwState = FIREWORK_ROCKET;
-uint32_t stateStartTime = 0;
 
 // ###########################
 // Helpful utility functions
@@ -999,25 +997,17 @@ void GraphicsAnimations::fadeFramebuffer(FrameBuffer bbuf, uint8_t decay) {
   }
 }
 
-// Write the leading pixel for the shootingStar
-void GraphicsAnimations::writeHead(FrameBuffer bbuf, int col, int row, RGB color) {
-  int idx = (row * COLUMNS + col) * 3;
-  bbuf[idx]     = color.r;
-  bbuf[idx + 1] = color.g;
-  bbuf[idx + 2] = color.b;
-}
-
 // Set up parameters for multiple shootingStars
 void GraphicsAnimations::initShootingStars() {
   for (int i = 0; i < NUM_STARS; i++) {
-    stars[i].x  = random(0, COLUMNS);
-    stars[i].y  = random(0, ROWS);
-    stars[i].vx = random(-30, 30) / 100.0;   // subtle drift
-    stars[i].vy = - (random(80, 140) / 100.0);
+    gParticles.stars[i].x  = random(0, COLUMNS);
+    gParticles.stars[i].y  = random(0, ROWS);
+    gParticles.stars[i].vx = random(-30, 30) / 100.0;   // subtle drift
+    gParticles.stars[i].vy = - (random(80, 140) / 100.0);
 
-    stars[i].r = random(0, 255);
-    stars[i].g = random(0, 255);
-    stars[i].b = random(0, 255);
+    gParticles.stars[i].r = random(0, 255);
+    gParticles.stars[i].g = random(0, 255);
+    gParticles.stars[i].b = random(0, 255);
   }
 }
 
@@ -1030,7 +1020,7 @@ void GraphicsAnimations::shootingStar(FrameBuffer bbuf) {
 
   for (int i = 0; i < NUM_STARS; i++) {
 
-    Star *s = &stars[i];
+    Star *s = &gParticles.stars[i];
 
     s->x += s->vx;
     s->y += s->vy;
@@ -1068,134 +1058,6 @@ void GraphicsAnimations::shootingStar(FrameBuffer bbuf) {
     bbuf[idx + 2] = s->b;
   }
 }
-
-// ###############################################
-// Functions for the fireworks animation
-// A classic rocket streaking up and exploding into 
-// a starburst which then fades out
-// ###############################################
-uint8_t NUM_EXPLOSION_STARS;
-void GraphicsAnimations::initRocket() {
-
-  Star *s = &stars[0];
-
-  s->x  = random(0, COLUMNS);
-  s->y  = 0;   // bottom
-
-  // diagonal upward motion
-  s->vx = random(-100, 100) / 100.0;   // add horizontal drift
-  s->vy = random(120, 160) / 100.0;  // strong upward velocity
-  s->r = 255;
-  s->g = 200;
-  s->b = 100;
-
-  fwState = FIREWORK_ROCKET;
-  stateStartTime = millis();
-}
-
-void GraphicsAnimations::initExplosion(float x, float y) {
-
-  uint8_t r,g,b;
-  r = random(150, 255);
-  g = random(100, 255);
-  b = random(100, 255);
-  float speed = random(60, 160) / 100.0;
-  NUM_EXPLOSION_STARS =  random(16,20);
-
-  for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
-    Star *s = &stars[i];
-
-    s->x = x;
-    s->y = y;
-
-    float angle = (TWO_PI / NUM_EXPLOSION_STARS) * i;
-
-    s->vx = cos(angle) * speed;
-    s->vy = sin(angle) * speed;
-    s->r = r;
-    s->g = g;
-    s->b = b;
-    s->age = 0;
-    //s->maxAge = random(18, 35);   // ~0.3–0.6 sec at 60fps
-    s->maxAge = 15;            // Keep them all the same size  
-    s->active = true;
-  }
-
-  fwState = FIREWORK_EXPLOSION;
-  stateStartTime = millis();
-}
-
-// ###########################################################
-// Main Fireworks code
-// Control the rocket/explosion phases with state variables
-// ###########################################################
-void GraphicsAnimations::fireworks(FrameBuffer bbuf) {
-
-  switch (fwState) {
-    case FIREWORK_ROCKET: {
-      fadeFramebuffer(bbuf, 30);   // fade the rocket trail faster
-      Star *s = &stars[0];
-      s->x += s->vx;
-      s->y += s->vy;
-
-      // wrap horizontally across the column seam
-      if (s->x < 0)        s->x += COLUMNS;
-      if (s->x >= COLUMNS) s->x -= COLUMNS;
-
-      int col = (int)s->x;
-      int row = (int)s->y;
-
-      // Write the bright head of the rocket path
-      if (row >= 0 && row < ROWS) {
-        writeHead(bbuf, col, row, {s->r, s->g, s->b});
-      }
-
-      // explode at 2/3 height.
-      if (s->y > (ROWS * 0.66)) {
-        initExplosion(s->x, s->y);
-      }
-
-    } break;
-
-    case FIREWORK_EXPLOSION: {
-      fadeFramebuffer(bbuf, 8);   // Slower fade for the firework burst
-      for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
-        Star *s = &stars[i];
-
-        if (!s->active) continue;
-
-        s->x += s->vx;
-        s->y += s->vy;
-
-        s->vx *= 0.97;   // optional drag
-        s->vy *= 0.97;
-
-       if (s->x < 0)        s->x += COLUMNS;
-       if (s->x >= COLUMNS) s->x -= COLUMNS;
-
-        s->age++;
-
-        if (s->age >= s->maxAge) {
-          s->active = false;
-          continue;
-        }
-
-        int col = (int)s->x;
-        int row = (int)s->y;
-        
-        if (col >= 0 && col < COLUMNS && row >= 0 && row < ROWS) {
-          writeHead(bbuf, col, row, {s->r, s->g, s->b});
-        }
-      }
-
-      // after 700ms restart cycle
-      if (millis() - stateStartTime > 700) {
-        initRocket();
-      }
-    } break;
-  }
-}
-
 
 //##########################################
 // Helper functions for the sparkShower

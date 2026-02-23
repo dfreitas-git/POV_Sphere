@@ -5,38 +5,53 @@
 #include <colors.h>
 #include <renderTypes.h>
 
-  // Each triggered state puts us into a render state where the actual graphics are generated
-  enum MarshmallowPhase {
-    MM_RAW,
-    MM_TOASTING,
-    MM_MELTING,
-    MM_DROPPING,
-    MM_BURNT,
-    MM_SMOKE
-  };
 
-  // This is the struct that is updated based on the state's phase.  It's how we control motion transforms 
-  // while rendering for a particular phase.
-  struct MarshmallowState {
-    MarshmallowPhase phase;
-    uint32_t phaseStartTime;
-    uint32_t phaseRunTime;
-    // base pose
-    int cx, cy;
-    int rotation;
-    int halfSize;
-    RGB color;
-  };
+// State variables for the fireworks animation.  ROCKET is for the single rising streak, EXPLOSION is when the "spokes" shoot out
+typedef enum {
+  FIREWORK_ROCKET,
+  FIREWORK_EXPLOSION
+} FireworkState;
+
+// Each triggered state puts us into a render state where the actual graphics are generated
+enum MarshmallowPhase {
+  MM_RAW,
+  MM_TOASTING,
+  MM_MELTING,
+  MM_DROPPING,
+  MM_BURNT,
+  MM_SMOKE
+};
+
+// This is the struct that is updated based on the state's phase.  It's how we control motion transforms 
+// while rendering for a particular phase.
+struct MarshmallowState {
+  MarshmallowPhase phase;
+  uint32_t phaseStartTime;
+  uint32_t phaseRunTime;
+  // base pose
+  int cx, cy;
+  int rotation;
+  int halfSize;
+  RGB color;
+};
 
 class GraphicsScenes {
 
 public:
-  GraphicsScenes();
+  GraphicsScenes();  // Constructor
   void pinecrest(FrameBuffer bbuf);
+  void fireworks(FrameBuffer bbuf);
+  void initRocket();
+  void initExplosion(float x, float y);
 
 private:
 
+  // State var for the fireworks animation
+  FireworkState fwState = FIREWORK_ROCKET;
+  uint32_t stateStartTime = 0;
+
   MarshmallowState mm;  
+
 
   // Pinecrest campground animation structs
   // owl structs

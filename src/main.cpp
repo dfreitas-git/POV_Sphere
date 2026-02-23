@@ -66,6 +66,7 @@
 #include <images.h>
 #include <motor.h>
 #include <UI.h>
+#include <graphicsParticles.h>
 #include <graphicsAssets.h>
 #include <graphicsPrimitives.h>
 #include <graphicsComposites.h>
@@ -115,6 +116,7 @@ GraphicsAssets     gAsset;
 GraphicsComposites gComp;
 GraphicsAnimations gAnim;
 GraphicsScenes     gScene;
+GraphicsParticles  gParticles;
 
 
 //#########################################
@@ -164,7 +166,7 @@ void setup() {
   if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
     gAnim.initShootingStars();
   } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
-    gAnim.initRocket();
+    gScene.initRocket();
   }
 
   // Initialize SPI and create and clear framebuffers
@@ -378,7 +380,7 @@ void graphicsTask(void* parameter) {
         if(strcmp(imageTable[imageToDisplayIndex]->name ,"ShootingS") == 0) {
           gAnim.initShootingStars();
         } else if(strcmp(imageTable[imageToDisplayIndex]->name ,"Fireworks") == 0) {
-          gAnim.initRocket();
+          gScene.initRocket();
         }
         previousImageToDisplayIndex = imageToDisplayIndex;
       }
