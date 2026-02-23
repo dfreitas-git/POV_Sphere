@@ -20,29 +20,6 @@ extern volatile bool scrollOnOffFlag;   // Whether or not the sphere is rotating
 
 extern int brightness;               // Sphere LED brightness
 
-
-//################################################################################################################
-
-// Put into UI
-/* ==== Global Menu State ===== */
-extern uint8_t imageToDisplayIndex;
-extern uint8_t previousImageToDisplayIndex;
-extern bool demoAll;  // Run each image for 10 seconds on the sphere
-
-// Core-0 will do the actual angle measurements, Core-1 will sync to them
-extern uint32_t lastMeasuredTime;         // micros() timestamp
-
-// Core-1 PLL variables
-extern int64_t angle_accum;            // 64-bits so integer math doesn't lose remainder precision
-extern int32_t angle_q;                // current predicted angle (Q0, 0–4095)
-extern int32_t core_1_omega_ff;        // local copy used by core-1.  Core-1 will add any necessary phase correction to it.
-extern uint16_t core_1_omega_trim;     // local copy used by core-1.
-extern long phase_error;               // Current error between measured angle from core-0 and computed angle on core-1
-
-// motor RPM calculating and control
-extern uint16_t lastAngle;
-extern float motorRPM;
-
 // Images to display on the Sphere
 extern const uint8_t NUMBER_OF_DISPLAY_FILES;
 extern const char* imageToDisplay[];

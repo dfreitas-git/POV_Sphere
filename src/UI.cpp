@@ -6,6 +6,7 @@
 #include <Ticker.h>
 
 extern UI ui;
+extern Renderer renderer;
 
 // ######################################
 //   Menus and Rotary Encoder for the UI
@@ -117,7 +118,8 @@ void UI::buildMenu() {
     &menuSettings,
     nullptr, 0,
     nullptr,
-    &brightness, 0, 10,
+    //&brightness, 0, 10,
+    renderer.brightnessPtr(), 0, 10,
     0, 0, 0,
     nullptr, 0, nullptr
   };

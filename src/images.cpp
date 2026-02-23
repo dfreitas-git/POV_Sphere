@@ -2,6 +2,10 @@
 #include <images.h>
 #include <graphicsGlobals.h>
 
+// Images to display on the Sphere
+const uint8_t NUMBER_OF_DISPLAY_FILES = IMG_COUNT;
+const char* imageToDisplay[IMG_COUNT];
+
 // This defines the image functions that will be available to the display
 // display menu item in the user UI
 const Image *imageTable[IMG_COUNT] = {

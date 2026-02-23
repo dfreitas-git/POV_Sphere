@@ -30,7 +30,8 @@ public:
   void markBackBufferFilled();
   bool isBackBufferFilled();
   void clearFrameBuffer(FrameBuffer framebuffer);
-  void setBrightness(uint8_t brightness);
+  void setBrightness();
+  int* brightnessPtr();
   void setFramebufferOffset(int offset);
   int getFramebufferOffset();
   void setNextColumnAngle(uint32_t angle);
@@ -41,6 +42,8 @@ public:
   unsigned long getLastScrollTime();
   void setLastAnimateTime(unsigned long time);
   unsigned long getLastAnimateTime();
+
+  int brightness = 3;                // Sphere Global LED brightness control
 
 private:
   int framebufferOffset;    // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.

@@ -357,7 +357,7 @@ void graphicsTask(void* parameter) {
     // Global brightness: 0b111xxxxx (5-bit current control)
     // Read the brightness setting (can be changed in the OLED menu)  Map to 0-1F
     //fiveBitBright = map(brightness,0,10,0,31);
-    renderer.setBrightness(brightness);
+    renderer.setBrightness();
 
     // Load the backBuffer with the next frame to display
     if (!renderer.isBackBufferFilled()) {

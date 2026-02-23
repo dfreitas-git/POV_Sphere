@@ -22,8 +22,14 @@ void Renderer::init() {
 //########################################
 // Set the brightness bits for the dotStar
 //########################################
-void Renderer::setBrightness(uint8_t brightness) {
+void Renderer::setBrightness() {
     fiveBitBright = map(brightness,0,10,0,31);
+}
+//########################################
+// Get reference to brightness var
+//########################################
+int* Renderer::brightnessPtr() {
+    return &brightness;
 }
 
 //###########################################################
