@@ -19,28 +19,37 @@
 
 class Renderer {
 public:
-    void init();
-    void freeBuffers();
-    void sendColumn(uint16_t columnIndex);
-    bool isBusy() const;
-    void swapBuffers();
-    uint8_t* getBackBuffer();
-    void markBackBufferFilled();
-    bool isBackBufferFilled();
-    void clearFrameBuffer(FrameBuffer framebuffer);
+  Renderer();  // Constructor
+
+  void init();
+  void freeBuffers();
+  void sendColumn(uint16_t columnIndex);
+  bool isBusy() const;
+  void swapBuffers();
+  uint8_t* getBackBuffer();
+  void markBackBufferFilled();
+  bool isBackBufferFilled();
+  void clearFrameBuffer(FrameBuffer framebuffer);
+  void setBrightness(uint8_t brightness);
+  void setFramebufferOffset(int offset);
+  int getFramebufferOffset();
 
 private:
-    void initSpi();
-    void buildColumn(uint8_t *dst, uint8_t *colPtr);
-    void startColumnDma(uint8_t *columnData);
-    void pollDmaComplete();
-    void ensureBuffersAllocated();
+  int framebufferOffset;    // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
+  void initSpi();
+  void buildColumn(uint8_t *dst, uint8_t *colPtr);
+  void startColumnDma(uint8_t *columnData);
+  void pollDmaComplete();
+  void ensureBuffersAllocated();
 
-    spi_device_handle_t spi = nullptr;
+  // mapping of the menu brightness (0-10) to the dotStar five-bit brightness (0-31)
+  uint8_t fiveBitBright; 
 
-    uint8_t *frontBuffer = nullptr;
-    uint8_t *backBuffer  = nullptr;
+  spi_device_handle_t spi = nullptr;
 
-    volatile bool dmaBusy = false;
-    volatile bool backBufferFilled = false;
+  uint8_t *frontBuffer = nullptr;
+  uint8_t *backBuffer  = nullptr;
+
+  volatile bool dmaBusy = false;
+  volatile bool backBufferFilled = false;
 };

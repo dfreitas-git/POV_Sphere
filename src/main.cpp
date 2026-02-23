@@ -22,7 +22,7 @@
 //  const Image ImageNameWrap = {
 //    .name = "ImageName",
 //    .width = ImageName.width,
-//    .height = ImageName.height,
+//    .height = imageName.height,
 //    .bytes_per_pixel = ImageName.bytes_per_pixel,
 //    .pixel_data = ImageName.pixel_data
 //  };
@@ -350,13 +350,14 @@ void graphicsTask(void* parameter) {
     if(scrollOnOffFlag &&  curMillis - lastScrollTime > SCROLL_UPDATE_TIME) {
 
       // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.
-      framebufferOffset = (framebufferOffset - 1 + COLUMNS) % COLUMNS;
+      renderer.setFramebufferOffset((renderer.getFramebufferOffset() - 1 + COLUMNS) % COLUMNS);
       lastScrollTime=curMillis;
     }
 
     // Global brightness: 0b111xxxxx (5-bit current control)
     // Read the brightness setting (can be changed in the OLED menu)  Map to 0-1F
-    fiveBitBright = map(brightness,0,10,0,31);
+    //fiveBitBright = map(brightness,0,10,0,31);
+    renderer.setBrightness(brightness);
 
     // Load the backBuffer with the next frame to display
     if (!renderer.isBackBufferFilled()) {
@@ -474,7 +475,7 @@ void loop() {
   
     // Go update the four dotStar columns. 
     if(!renderer.isBusy()) {
-      renderer.sendColumn((columnIndex + framebufferOffset) % COLUMNS);
+      renderer.sendColumn((columnIndex + renderer.getFramebufferOffset()) % COLUMNS);
 
       // Once we update the column, go chedk if a new frame is ready.  Swap between columns
       if(renderer.isBackBufferFilled()) {

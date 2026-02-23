@@ -1,14 +1,43 @@
 
 #include <renderer.h>
 
+//#################################
+// Constructor initialization list
+//#################################
+Renderer::Renderer()
+  : framebufferOffset {0}
+{}
 
-//#############################
+//###################################
 // Initialize the framebuffers
-//#############################
+// called during setup() in main.cpp
+//###################################
 void Renderer::init() {
     initSpi();
     ensureBuffersAllocated();
 }
+
+//########################################
+// Set the brightness bits for the dotStar
+//########################################
+void Renderer::setBrightness(uint8_t brightness) {
+    fiveBitBright = map(brightness,0,10,0,31);
+}
+
+//###########################################################
+// Set the framebufferOffset (used for scrolling the display)
+//###########################################################
+void Renderer::setFramebufferOffset(int offset) {
+    framebufferOffset = offset;
+}
+
+//###################################
+// Get the current framebufferOffset 
+//###################################
+int Renderer::getFramebufferOffset() {
+    return framebufferOffset;
+}
+
 
 //###########################################################
 // Status about if we are in the middle of a DMA transaction
