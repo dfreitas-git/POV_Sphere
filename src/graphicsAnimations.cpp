@@ -999,23 +999,20 @@ void GraphicsAnimations::fadeFramebuffer(FrameBuffer bbuf, uint8_t decay) {
 
 // Set up parameters for multiple shootingStars
 void GraphicsAnimations::initShootingStars() {
-  auto* stars = gParticles.getStars();
   for (int i = 0; i < NUM_STARS; i++) {
-    stars[i].x  = random(0, COLUMNS);
-    stars[i].y  = random(0, ROWS);
-    stars[i].vx = random(-30, 30) / 100.0;   // subtle drift
-    stars[i].vy = - (random(80, 140) / 100.0);
+    gParticles.getStar(i).x  = random(0, COLUMNS);
+    gParticles.getStar(i).y  = random(0, ROWS);
+    gParticles.getStar(i).vx = random(-30, 30) / 100.0;   // subtle drift
+    gParticles.getStar(i).vy = - (random(80, 140) / 100.0);
 
-    stars[i].r = random(0, 255);
-    stars[i].g = random(0, 255);
-    stars[i].b = random(0, 255);
+    gParticles.getStar(i).r = random(0, 255);
+    gParticles.getStar(i).g = random(0, 255);
+    gParticles.getStar(i).b = random(0, 255);
   }
 }
 
 // Main rendering function
 void GraphicsAnimations::shootingStar(FrameBuffer bbuf) {
-
-  auto* stars = gParticles.getStars();
 
   // Iterate over the entire framebuffer subtracting brightness from each
   // pixel until we fade to black
@@ -1023,7 +1020,7 @@ void GraphicsAnimations::shootingStar(FrameBuffer bbuf) {
 
   for (int i = 0; i < NUM_STARS; i++) {
 
-    Star *s = &stars[i];
+    Star *s = &gParticles.getStar(i);
 
     s->x += s->vx;
     s->y += s->vy;

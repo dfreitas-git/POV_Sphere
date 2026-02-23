@@ -1,5 +1,5 @@
 #include <graphicsParticles.h>
 
-Star* GraphicsParticles::getStars() { 
-  return stars; 
+Star& GraphicsParticles::getStar(int i) {
+    return stars[i];
 }

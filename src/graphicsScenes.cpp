@@ -49,8 +49,7 @@ GraphicsScenes::GraphicsScenes()
 uint8_t NUM_EXPLOSION_STARS;
 void GraphicsScenes::initRocket() {
 
-  auto* stars = gParticles.getStars();
-  Star *s = &stars[0];
+  Star *s = &gParticles.getStar(0);
 
   s->x  = random(0, COLUMNS);
   s->y  = 0;   // bottom
@@ -68,7 +67,6 @@ void GraphicsScenes::initRocket() {
 
 void GraphicsScenes::initExplosion(float x, float y) {
 
-  auto* stars = gParticles.getStars();
   uint8_t r,g,b;
   r = random(150, 255);
   g = random(100, 255);
@@ -77,7 +75,7 @@ void GraphicsScenes::initExplosion(float x, float y) {
   NUM_EXPLOSION_STARS =  random(16,20);
 
   for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
-    Star *s = &stars[i];
+    Star *s = &gParticles.getStar(i);
 
     s->x = x;
     s->y = y;
@@ -105,11 +103,10 @@ void GraphicsScenes::initExplosion(float x, float y) {
 // ###########################################################
 void GraphicsScenes::fireworks(FrameBuffer bbuf) {
 
-  auto* stars = gParticles.getStars();
   switch (fwState) {
     case FIREWORK_ROCKET: {
       gAnim.fadeFramebuffer(bbuf, 30);   // fade the rocket trail faster
-      Star *s = &stars[0];
+      Star *s = &gParticles.getStar(0);
       s->x += s->vx;
       s->y += s->vy;
 
@@ -135,7 +132,7 @@ void GraphicsScenes::fireworks(FrameBuffer bbuf) {
     case FIREWORK_EXPLOSION: {
       gAnim.fadeFramebuffer(bbuf, 8);   // Slower fade for the firework burst
       for (int i = 0; i < NUM_EXPLOSION_STARS; i++) {
-        Star *s = &stars[i];
+        Star *s = &gParticles.getStar(i);
 
         if (!s->active) continue;
 
