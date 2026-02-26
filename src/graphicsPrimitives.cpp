@@ -387,7 +387,7 @@ void GraphicsPrimitives::drawCircle(FrameBuffer bbuf, int centerX, int centerY, 
 
 //####################################################
 //  Draw Letters.  Read fonts from graphicsFunctions.h
-//  Letters are 7x5 caps.
+//  Letters are 7x7 caps.
 //####################################################
 void GraphicsPrimitives::drawLetter(FrameBuffer bbuf, uint8_t (*letter)[7], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor){
   for (int col = 0; col < 7; col++) {
