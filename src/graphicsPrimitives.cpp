@@ -1,6 +1,7 @@
 
 #include <graphicsPrimitives.h>
 #include <graphicsGlobals.h>
+#include <fonts.h>
 
 //#############################################################################
 // Functions for graphics primatives (circles, rectangles, triangles, etc.)
@@ -389,6 +390,7 @@ void GraphicsPrimitives::drawCircle(FrameBuffer bbuf, int centerX, int centerY, 
 //  Draw Letters.  Read fonts from graphicsFunctions.h
 //  Letters are 7x7 caps.
 //####################################################
+/*
 void GraphicsPrimitives::drawLetter(FrameBuffer bbuf, uint8_t (*letter)[7], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor){
   for (int col = 0; col < 7; col++) {
     for(int row = 0; row < 7; row++) {
@@ -398,6 +400,37 @@ void GraphicsPrimitives::drawLetter(FrameBuffer bbuf, uint8_t (*letter)[7], int 
         writePixel(bbuf,col+llX, llY+6 - row, bgColor);
       }
     }
+  }
+}
+*/
+//##############################################################
+//  Draw single characters  Read fonts from graphicsFunctions.h
+//  Letters are 7x7 caps.
+//##############################################################
+void GraphicsPrimitives::drawChar(FrameBuffer bbuf, char c, int x, int y, RGB fg, RGB bg) {
+  const uint8_t* glyph = getGlyph(c);
+
+  for(int row = 0; row < 7; row++) {
+    uint8_t bits = glyph[row];
+
+    for(int col = 0; col < 7; col++) {
+      if(bits & (1 << (6 - col))) {
+        writePixel(bbuf, x+col, y+(6-row), fg);
+      } else {
+        writePixel(bbuf, x+col, y+(6-row), bg);
+      }
+    }
+  }
+}
+
+//##############################################################
+//  Draw strings. 
+//##############################################################
+void GraphicsPrimitives::drawString(FrameBuffer bbuf, const char* s, int x, int y, RGB fg, RGB bg) {
+  while(*s) {
+    drawChar(bbuf, *s, x, y, fg, bg);
+    x += 8;  // 7px glyph + 1px spacing
+    s++;
   }
 }
 

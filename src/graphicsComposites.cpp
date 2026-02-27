@@ -146,23 +146,3 @@ void GraphicsComposites::drawRoastingStick(FrameBuffer bbuf,int centerX, int cen
   palette c;
   gPrim.drawLine(bbuf,centerX-9,centerY+3,centerX+10,centerY-4,1,c.gray);  
 }
-
-// Pinecrest text
-void GraphicsComposites::pinecrestLetters(FrameBuffer bbuf,int startX, int startY) {
-  palette c;
-  font_7x7 f;
-  gPrim.drawLetter(bbuf,f.P,startX ,startY, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.I,startX+7 ,startY, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.N,startX+14 ,startY, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.E,startX+21 ,startY, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.C,startX+28 ,startY, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.R,startX+35 ,startY, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.E,startX+42 ,startY, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.S,startX+49 ,startY, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.T,startX+56 ,startY, c.black, c.green);
-
-  gPrim.drawLetter(bbuf,f.N2,startX+10 ,startY-10, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.N0,startX+17 ,startY-10, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.N2,startX+24 ,startY-10, c.black, c.green);
-  gPrim.drawLetter(bbuf,f.N6,startX+31 ,startY-10, c.black, c.green);
-}

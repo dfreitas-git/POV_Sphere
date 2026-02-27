@@ -434,8 +434,8 @@ void GraphicsAnimations::checker(FrameBuffer bbuf) {
 //#######################################
 void GraphicsAnimations::cycle_spiral(FrameBuffer bbuf, int numSpirals, int thickness, int twist){
 
-  // How quickly we do framebuffer updates (in ms)
-  uint16_t animatePeriod = 50;
+  // How quickly we do framebuffer updates (in ms).  Can't be faster than 16ms which is the graphics task loop time.
+  uint16_t animatePeriod = 15;
   static int animateCount = 1;
   static int fg0ColorIndex = 0;
   static int fg1ColorIndex = 1;
@@ -531,7 +531,7 @@ void GraphicsAnimations::spiralD(FrameBuffer bbuf) {
   // color change period
   constexpr uint32_t spiralRevPeriod = 3000; //in mS 
 
-  // How quickly we do framebuffer updates (in ms)
+  // How quickly we do framebuffer updates (in ms).  Can't be faster than 16ms which is the graphics task loop time.
   uint16_t animatePeriod = 50;
   static int animateCount = 1;
 
@@ -590,7 +590,7 @@ void GraphicsAnimations::spiralD(FrameBuffer bbuf) {
 //#########################
 void GraphicsAnimations::diamond(FrameBuffer bbuf) {
 
-  // How quickly we do framebuffer updates (in ms)
+  // How quickly we do framebuffer updates (in ms).  Can't be faster than 16ms which is the graphics task loop time.
   uint16_t animatePeriod = 50;
   constexpr int borderWidth = 5;
   static int animateCount = borderWidth;
@@ -641,8 +641,8 @@ void GraphicsAnimations::diamond(FrameBuffer bbuf) {
 //#########################
 void GraphicsAnimations::flower(FrameBuffer bbuf) {
 
-  // How quickly we do framebuffer updates (in ms)
-  uint16_t animatePeriod = 50;
+  // How quickly we do framebuffer updates (in ms).  Can't be faster than 16ms which is the graphics task loop time.
+  uint16_t animatePeriod = 25;
   static int animateCount = 1;
 
   // Get the colors

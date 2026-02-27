@@ -322,7 +322,8 @@ void GraphicsScenes::pinecrest(FrameBuffer bbuf) {
   gComp.drawOwl(bbuf,100,25,blink,squawk);
 
   // PINECREST letters
-  gComp.pinecrestLetters(bbuf,0,30);
+  gPrim.drawString(bbuf,"PINECREST", 0,30, c.green, c.black);
+  gPrim.drawString(bbuf,"2026", 10,20, c.green, c.black);
 
   // Reset the scene
   if(now > sceneStartTime + 11500) {

@@ -20,7 +20,6 @@ public:
   void drawPacman(FrameBuffer bbuf,int centerX, int centerY, const struct RGB& bodyColor, const struct RGB& bgColor, bool mouthOpen);
   void drawCampfire(FrameBuffer bbuf,int centerX, int centerY);
   void drawRoastingStick(FrameBuffer bbuf,int centerX, int centerY);
-  void pinecrestLetters(FrameBuffer bbuf,int startX, int startY);
 
 private:
 

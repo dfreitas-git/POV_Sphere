@@ -45,7 +45,7 @@ constexpr int COLUMN_PAYLOAD = START_FRAME_BYTES + (LEDS_PER_COLUMN * BYTES_PER_
 constexpr int TOTAL_COLUMNS_BYTES = COLUMNS * COLUMN_PAYLOAD;
 
 constexpr uint8_t SCROLL_UPDATE_TIME = 100;   // How often (in milliseconds) to update the framebuffer offset pointer.  Controls how fast the image scrolls around the Sphere.
-constexpr uint16_t DEMO_DISPLAY_TIME = 10000; // Amount of time we give each animation to display during the demo mode.
+constexpr uint16_t DEMO_DISPLAY_TIME = 15000; // Amount of time we give each animation to display during the demo mode.
 constexpr uint8_t MAX_TRIM = 2;               // The most we allow core-0 to adjust the angle being computed by core-1
 
 // Core-1 angle values calculated and pll-locked to core-0 actual angle measurements

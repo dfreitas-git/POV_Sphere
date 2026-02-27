@@ -27,8 +27,9 @@ public:
   void drawDiamond(FrameBuffer bbuf,int centerX, int centerY, int extentX, int extentY, const struct RGB& color);
   void drawEllipse(FrameBuffer bbuf, int centerX, int centerY, int radiusX, int radiusY, float rotateDeg, const struct RGB& color);
   void drawCircle(FrameBuffer bbuf, int centerX, int centerY, int radius, const struct RGB& color);
-  void drawLetter(FrameBuffer bbuf, uint8_t (*letter)[7], int llX ,int llY, const struct RGB& bgColor, const struct RGB& fgColor);
   void drawSpiral(FrameBuffer bbuf,uint32_t phase, int K, int numSpirals, int thickness, int drawToRow, const struct RGB& color);
+  void drawChar(FrameBuffer bbuf, char c, int x, int y, RGB fg, RGB bg);
+  void drawString(FrameBuffer bbuf, const char* s, int x, int y, RGB fg, RGB bg);
 
 private:
   float cross(const Vec2& a, const Vec2& b, const Vec2& c);
