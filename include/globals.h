@@ -52,6 +52,7 @@ constexpr uint8_t MAX_TRIM = 2;               // The most we allow core-0 to adj
 constexpr uint8_t  OMEGA_SHIFT = 16;
 constexpr uint32_t OMEGA_TRIM_PERIOD = 30000000;  // The amount of time (in microseconds) we'd want to apply frequency trim over to our core-1 VCO
 constexpr uint8_t  PHASE_DEADBAND = 10;           // Any angle error less than this and we don't apply any more correction to the VCO
+constexpr uint8_t  NUMBER_OF_SECTORS = 12;        // We break up the colums into sector groups to apply phase trim per sector
 
 // Use integer math; keep remainder for precision
 constexpr uint32_t COLUMN_STEP = AS5600_COUNTS / COLUMNS;      // 34

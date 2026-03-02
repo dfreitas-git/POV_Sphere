@@ -18,7 +18,8 @@ extern const char* imageToDisplay[];
 /* List of images and pointers to the image structures
 /****************************************************/
 enum ImageID {
-    IMG_fireworksWrap,
+    IMG_meridians,
+    IMG_fireworks,
     IMG_roadrun,
     IMG_donduck,
     IMG_helloWorld,
@@ -26,21 +27,21 @@ enum ImageID {
     IMG_vFade,
     IMG_hFade,
     IMG_hbands,
-    IMG_sparkShowerWrap,
-    IMG_shootingStarWrap,
+    IMG_sparkShower,
+    IMG_shootingStar,
     IMG_paint,
-    IMG_spiralRWrap,
-    IMG_spiralLWrap,
-    IMG_spiralDWrap,
-    IMG_checkerWrap,
-    IMG_flowerWrap,
-    IMG_diamondWrap,
-    IMG_pacman1Wrap,
-    IMG_pacmanWrap,
-    IMG_eyeballWrap,
+    IMG_spiralR,
+    IMG_spiralL,
+    IMG_spiralD,
+    IMG_checker,
+    IMG_flower,
+    IMG_diamond,
+    IMG_pacman1,
+    IMG_pacman,
+    IMG_eyeball,
     IMG_saffron,
     IMG_worldMap,
-    IMG_pinecrestWrap,
+    IMG_pinecrest,
     IMG_val_2026,
   //  IMG_testL,
   //  IMG_testDot,
@@ -83,6 +84,7 @@ void pacman1Wrapper(FrameBuffer bbuf);
 void shootingStarWrapper(FrameBuffer bbuf);
 void sparkShowerWrapper(FrameBuffer bbuf);
 void fireworksWrapper(FrameBuffer bbuf);
+void meridiansWrapper(FrameBuffer bbuf);
 
 extern const Image *imageTable[IMG_COUNT];
 
@@ -3641,4 +3643,14 @@ const Image fireworksWrap = {
     .bytes_per_pixel = 3,
     .pixel_data = NULL,
     .functionPtr = fireworksWrapper,
+};
+
+// meridian lines test pattern for calibrating phase jitter correction
+const Image meridiansWrap = {
+    .name = "Meridians",
+    .width = 120,
+    .height = 48,
+    .bytes_per_pixel = 3,
+    .pixel_data = NULL,
+    .functionPtr = meridiansWrapper,
 };

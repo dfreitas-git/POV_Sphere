@@ -469,6 +469,8 @@ void loop() {
 
   uint16_t adjustedAngle = motor.getAngle_q() % AS5600_COUNTS;  // modulo to wrap result in case of overflow
 
+  // Adjust the angle by a trim amount stored in a phaseError LookUpTable.  This allows us to compensate
+  // for periodic column-jitter caused by motor-tightness, bent POV_Sphere shaft, etc.
   int32_t triggerPoint = adjustedAngle - renderer.getNextColumnAngle();
   if(triggerPoint < -2048) triggerPoint += AS5600_COUNTS;
   if(triggerPoint >  2048) triggerPoint -= AS5600_COUNTS;

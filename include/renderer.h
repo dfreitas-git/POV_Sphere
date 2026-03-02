@@ -43,7 +43,10 @@ public:
   void setLastAnimateTime(unsigned long time);
   unsigned long getLastAnimateTime();
 
-  int brightness = 3;                // Sphere Global LED brightness control
+  int brightness = 3;     // Sphere Global LED brightness control
+  int sectorNum = 0;      // Select the Column group to apply offset correction to.
+  int offsetAdj = 0;      // The amount of angluar correction to apply to the selected sector columns
+                          // This is to try to null out column jitter introduced by motor drive tightness, etc.
 
 private:
   int framebufferOffset;    // Shift where in the frame buffer we get the column to display.  Use this to scroll the image.

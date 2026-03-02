@@ -87,15 +87,6 @@ const uint8_t GLYPH_T[7] PROGMEM = {
   0b0001000,
   0b0001000,
 };
-const uint8_t GLYPH_2[7] PROGMEM = {
-  0b0000000,
-  0b0011100,
-  0b0000010,
-  0b0000100,
-  0b0001000,
-  0b0010000,
-  0b0111100,
-};
 const uint8_t GLYPH_0[7] PROGMEM = {
   0b0000000,
   0b0011100,
@@ -105,14 +96,86 @@ const uint8_t GLYPH_0[7] PROGMEM = {
   0b0100010,
   0b0011100,
 };
+const uint8_t GLYPH_1[7] PROGMEM = {
+  0b0000000,
+  0b0011000,
+  0b0101000,
+  0b0001000,
+  0b0001000,
+  0b0001000,
+  0b0011100,
+};
+const uint8_t GLYPH_2[7] PROGMEM = {
+  0b0000000,
+  0b0011100,
+  0b0000010,
+  0b0000100,
+  0b0001000,
+  0b0010000,
+  0b0111100,
+};
+const uint8_t GLYPH_3[7] PROGMEM = {
+  0b0000000,
+  0b0011100,
+  0b0000010,
+  0b0001110,
+  0b0000010,
+  0b0000010,
+  0b0011100,
+};
+const uint8_t GLYPH_4[7] PROGMEM = {
+  0b0000000,
+  0b0100010,
+  0b0100010,
+  0b0111110,
+  0b0000010,
+  0b0000010,
+  0b0000010,
+};
+const uint8_t GLYPH_5[7] PROGMEM = {
+  0b0000000,
+  0b0111110,
+  0b0100000,
+  0b0011100,
+  0b0000010,
+  0b0000010,
+  0b0111100,
+};
 const uint8_t GLYPH_6[7] PROGMEM = {
   0b0000000,
-  0b0010000,
+  0b0011000,
   0b0100000,
   0b0111100,
   0b0100010,
   0b0100010,
   0b0011100,
+};
+const uint8_t GLYPH_7[7] PROGMEM = {
+  0b0000000,
+  0b0111110,
+  0b0000010,
+  0b0000100,
+  0b0001000,
+  0b0010000,
+  0b0100000,
+};
+const uint8_t GLYPH_8[7] PROGMEM = {
+  0b0000000,
+  0b0111110,
+  0b0100010,
+  0b0111110,
+  0b0100010,
+  0b0100010,
+  0b0111110,
+};
+const uint8_t GLYPH_9[7] PROGMEM = {
+  0b0000000,
+  0b0111110,
+  0b0100010,
+  0b0111110,
+  0b0000010,
+  0b0000010,
+  0b0000010,
 };
 
 // 7x7 packed for all 95 printable ASCII characters.  If we have not populated a given
@@ -135,15 +198,15 @@ const uint8_t* font7x7[95] = {
     nullptr,       // .
     nullptr,       // /
     GLYPH_0,       // 0
-    nullptr,       // 1
+    GLYPH_1,       // 1
     GLYPH_2,       // 2
-    nullptr,       // 3
-    nullptr,       // 4
-    nullptr,       // 5
+    GLYPH_3,       // 3
+    GLYPH_4,       // 4
+    GLYPH_5,       // 5
     GLYPH_6,       // 6
-    nullptr,       // 7
-    nullptr,       // 8
-    nullptr,       // 9
+    GLYPH_7,       // 7
+    GLYPH_8,       // 8
+    GLYPH_9,       // 9
     nullptr,       // :
     nullptr,       // ;
     nullptr,       // <

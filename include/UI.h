@@ -120,7 +120,7 @@ private:
     MenuItem menuScrollOnOff;
     MenuItem menuDemoOnOff;
 
-    MenuItem* settingsChildren[2];
+    MenuItem* settingsChildren[4];
     MenuItem* mainChildren[5];
 
 };

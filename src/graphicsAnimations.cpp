@@ -58,13 +58,16 @@ void shootingStarWrapper(FrameBuffer bbuf) {
 void sparkShowerWrapper(FrameBuffer bbuf) {
   gAnim.sparkShower(bbuf);
 }
-
 // These call functions in Scenes class.  Just leaving the wrappers here to keep them all grouped together
 void pinecrestWrapper(FrameBuffer bbuf) {
   gScene.pinecrest(bbuf);
 }
 void fireworksWrapper(FrameBuffer bbuf) {
   gScene.fireworks(bbuf);
+}
+// Test pattern for calibrating column jitter correction
+void meridiansWrapper(FrameBuffer bbuf) {
+  gAnim.meridians(bbuf);
 }
 
 
@@ -104,6 +107,42 @@ void GraphicsAnimations::clearBackground(FrameBuffer bbuf) {
     }
   }
 }
+
+//#############################################
+//  Function to display a calibration pattern
+//  Vertical lines every 10 columns with index
+//  labels.  Use this when tuning the phase 
+//  compensation settings.
+//####################################
+void GraphicsAnimations::meridians(FrameBuffer bbuf) {
+
+  palette c;
+  RGB pixelColor;
+
+  char colString[4];
+
+  // Write the pixels into the framebuffer
+  for (uint8_t col = 0; col < COLUMNS; col++) {
+
+    // Write a vertical line every 10 columns
+    if(col%10 == 0) {
+      pixelColor = c.white;
+    } else {
+      pixelColor = c.black;
+    }
+    for (uint8_t row = 0; row < ROWS; row++) {
+      bbuf[(row * COLUMNS * 3) + (col * 3)]     = pixelColor.r;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 1)] = pixelColor.g;
+      bbuf[(row * COLUMNS * 3) + (col * 3 + 2)] = pixelColor.b;
+    }
+  }
+
+  for(int i = 0; i<COLUMNS; i+=30) {
+    sprintf(colString,"%d",i);
+    gPrim.drawString(bbuf,colString,i,35,c.white,c.black);
+  }
+}
+
 
 //#############################################
 //  Function to display a fade on the Sphere
@@ -963,11 +1002,6 @@ void GraphicsAnimations::pacman1(FrameBuffer bbuf) {
   gPrim.drawCircle(bbuf,15, 23, 2, c.yellow);
   gPrim.drawCircle(bbuf,25, 23, 2, c.yellow);
 }
-
-
-
-
-
 
 //###############################################################################
 //  Animated Shooting Star

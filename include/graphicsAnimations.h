@@ -33,6 +33,7 @@ class GraphicsAnimations {
     void sparkShower(FrameBuffer bbuf);
     void renderMarshmallow(FrameBuffer bbuf, MarshmallowState& mm,uint32_t now, palette& colors);
     void fadeFramebuffer(FrameBuffer bbuf, uint8_t decay);
+    void meridians(FrameBuffer bbuf);
 
   private:
     float lerp(float a, float b, float f);
