@@ -60,10 +60,12 @@
 // - The POV_Sphere is powered from a 12v battery (3s2p lithium).  There is a charge jack on the battery case.
 //   A BMS is built in so you only need to supply 12.6-13v and it will limit the charge to the batteries.  
 //
-// - *** NOTE: Do not turn on the power switch or run the Sphere while charging the batteries.
+// - *** NOTE: Do not turn on the power switch or run the Sphere while charging the batteries.  We don't want to 
+//             apply the charging voltage directly to the circuits (only to the battery).  Should use a SPDT switch
+//             but I didn't have the right sized one in the spare parts bin...
 //
 
-// The majority of this code was written by colaborating with chatGPT.  I modified by add menu specifics, hardware specifics, etc.
+// The majority of this code was written by colaborating with chatGPT.  I modified by adding menu specifics, hardware specifics, etc.
 // dlf 12/28/2025
 
 #include <Arduino.h>
