@@ -28,7 +28,7 @@ const Image *imageTable[IMG_COUNT] = {
     &spiralDWrap,
     &checkerWrap,
     &flowerWrap,
-    &val_2026Wrap,
+    &heartsWrap,
     &diamondWrap,
     &pacman1Wrap,
     &pacmanWrap,

@@ -42,7 +42,7 @@ enum ImageID {
     IMG_saffron,
     IMG_worldMap,
     IMG_pinecrest,
-    IMG_val_2026,
+    IMG_hearts,
   //  IMG_testL,
   //  IMG_testDot,
     IMG_COUNT
@@ -2111,7 +2111,7 @@ static const struct {
   guint  	 height;
   guint  	 bytes_per_pixel; /* 2:RGB16, 3:RGB, 4:RGBA */ 
   guint8 	 pixel_data[120 * 48 * 2 + 1];
-} val_2026 = {
+} hearts = {
   120, 48, 2,
   "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
   "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
@@ -2523,12 +2523,12 @@ static const struct {
 };
 
 
-const Image val_2026Wrap = {
-    .name = "Val2026",
-    .width = val_2026.width,
-    .height = val_2026.height,
-    .bytes_per_pixel = val_2026.bytes_per_pixel,
-    .pixel_data = val_2026.pixel_data,
+const Image heartsWrap = {
+    .name = "Hearts",
+    .width = hearts.width,
+    .height = hearts.height,
+    .bytes_per_pixel = hearts.bytes_per_pixel,
+    .pixel_data = hearts.pixel_data,
     .functionPtr = imageWrapper,
 };
 
