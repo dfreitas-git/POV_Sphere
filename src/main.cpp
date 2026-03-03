@@ -33,7 +33,7 @@
 // - Finally, add an entry into the enum ImageID {} list and the imageTable[IMG_COUNT] array to the images.h file.
 //  The code for this is in the graphicsAssets class.
 //
-//  Graphics generation:
+//  Graphics Generation:
 // - There are graphics primitives (draw pixel, line, rectangle, etc.) in the graphicsPrimitives class.
 // - Composites (drawings that call the primitives to build complex shapes) are in graphicsComposites.
 // - Animations (moving shapes, algorithmic generators) are in the graphicsAnimations class.
@@ -46,7 +46,6 @@
 //   it as the functions can compute color for any spot on the Sphere,  the framebuffer loads its more sparsely available 
 //   points by reading the sphere colors at those points.
 // - Edit the images.h file to add wrappers for each of the animation functions.  The functions themselves are in the images.cpp file.
-//   Code 
 //
 // Controls
 // - We use a 128x64 OLED and rotary-encoder/switch for a simple menu system for user controls.   The code 
