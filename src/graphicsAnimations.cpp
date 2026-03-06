@@ -329,7 +329,7 @@ void GraphicsAnimations::hBands(FrameBuffer bbuf) {
     else if (d < 48)   colorIndex=3;
 
     // Now write that color all the way around the Sphere
-    for (int col = 0; col < 120; col++) {
+    for (int col = 0; col < COLUMNS; col++) {
         bbuf[(row * COLUMNS * 3) + (col * 3)]     = r[colorIndex];
         bbuf[(row * COLUMNS * 3) + (col * 3 + 1)] = g[colorIndex];
         bbuf[(row * COLUMNS * 3) + (col * 3 + 2)] = b[colorIndex];
@@ -386,7 +386,7 @@ void GraphicsAnimations::paint(FrameBuffer bbuf) {
   // For each row, figure out which color band it lays in
   // Start from the top row so it looks like the paint is flowing down
   for (int row = 0; row < ROWS; row++) {
-    for (int col = 0; col < 120; col++) {
+    for (int col = 0; col < COLUMNS; col++) {
 
       // Shape the boundary with offsets from our look up table
       int curHead = frameBufferHeadPtr + waveLUT[col % COLUMNS/2];
