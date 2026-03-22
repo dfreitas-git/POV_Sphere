@@ -453,8 +453,8 @@ void GraphicsAnimations::checker(FrameBuffer bbuf) {
     }
     for (int row = 0; row < ROWS; row++) {
 
-      // shift by 3 so we "coarseify" the xor to happen across eight row/col bands
-      bool fg = ((row >> 3) ^ (col >> 3)) & 1;
+      // shift by 2 so we "coarseify" the xor to happen across 4 row/col bands
+      bool fg = ((row >> 2) ^ (col >> 2)) & 1;
       RGB color;
       if(fg) {
         color = contrastColors[fgIndex];
