@@ -94,7 +94,7 @@ void GraphicsPrimitives::drawTriangle(FrameBuffer bbuf, const Vec2& v1, const Ve
   minY=v1.y;
   if(v2.y < minY) { minY=v2.y; }
   if(v3.y < minY) { minY=v3.y; }
-  maxY=v1.x;
+  maxY=v1.y;
   if(v2.y > maxY) { maxY=v2.y; }
   if(v3.y > maxY) { maxY=v3.y; }
 
